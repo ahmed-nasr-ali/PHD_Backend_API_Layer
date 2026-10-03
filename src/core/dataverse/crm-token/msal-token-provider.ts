@@ -1,7 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { TokenProvider } from './token-provider';
-import { ConfidentialClientApplication } from '@azure/msal-node';
+import {
+  AuthenticationResult,
+  ConfidentialClientApplication,
+} from '@azure/msal-node';
 import { DataverseConfig } from '../config/dataverse.config';
+import { DataverseException } from '../errors/dataverse.exception';
 
 @Injectable()
 export class MsalTokenProvider extends TokenProvider {
@@ -16,15 +20,24 @@ export class MsalTokenProvider extends TokenProvider {
   }
 
   async getToken(forceRefresh?: boolean): Promise<string> {
-    const result = await this.msal.acquireTokenByClientCredential({
-      scopes: [this.scope],
-      skipCache: forceRefresh,
-    });
+    let result: AuthenticationResult | null;
+    try {
+      result = await this.msal.acquireTokenByClientCredential({
+        scopes: [this.scope],
+        skipCache: forceRefresh,
+      });
+    } catch (error) {
+      throw new DataverseException(
+        'Failed to acquire Azure AD token',
+        undefined,
+        {
+          cause: error,
+        },
+      );
+    }
 
     if (!result?.accessToken) {
-      throw new InternalServerErrorException(
-        'Azure AD returned no access token',
-      );
+      throw new DataverseException('Azure AD returned no access token');
     }
 
     return result.accessToken;

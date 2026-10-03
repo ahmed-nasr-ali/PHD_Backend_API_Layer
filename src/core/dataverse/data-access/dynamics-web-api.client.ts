@@ -59,6 +59,10 @@ export class DynamicsWebApiClient extends DataverseClient {
   }
 
   private toDataverseException(error: unknown): DataverseException {
+    if (error instanceof DataverseException) {
+      return error;
+    }
+
     const requestError = error as Partial<RequestError> | undefined;
     return new DataverseException(
       requestError?.message ?? 'Dataverse request failed',
