@@ -1,6 +1,6 @@
 ---
 name: request-validation-and-dtos
-description: How the inbound HTTP edge works in this NestJS project (controllers/, dto/, mappers/). Covers which kind of validation goes where (Zod schema in dto/ vs domain rule vs service check vs storage constraint), validating with the project's zodBody/zodQuery pipes, the difference between request DTO, service Input, response DTO and response mapper, and keeping controllers thin. Use when adding or changing an endpoint, a request or response DTO, a controller, or when deciding where a validation rule belongs.
+description: How the inbound HTTP edge works in this NestJS project (controllers/, dto/, mappers/). Covers which kind of validation goes where (Zod schema in dto/ vs domain rule vs service check vs storage constraint), validating with the project's zodBody/zodQuery/zodParam pipes, the response envelope, the difference between request DTO, service Input, response DTO and response mapper, and keeping controllers thin. Use when adding or changing an endpoint, a request or response DTO, a controller, or when deciding where a validation rule belongs.
 ---
 
 # Request Validation, DTOs and Response Mapping
@@ -21,8 +21,18 @@ Related: `nestjs-feature-architecture` (folders, services, errors), `dataverse-d
 
 `src/core/validation/presets` exports:
 
-- `zodBody(schema)`: validates a body; failure → **422** `{ message, errors: [{ field, message }] }`
-- `zodQuery(schema)`: validates query strings and route params; failure → **400**, same body
+- `zodBody(schema)`: validates a body; failure → **422**
+- `zodQuery(schema)`: validates query strings; failure → **400**
+- `zodParam(schema)`: validates route params; failure → **400**
+
+A validation failure returns the error envelope with `code: "VALIDATION_FAILED"` and one `errors` entry per issue. `field` is the dotted path (`tags.0.name`); for a root-level issue it is the param name (`id`) or the source (`body`, `query`):
+
+```json
+{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+  "errors": [{ "field": "email", "message": "Invalid email address" }] }
+```
+
+`src/core/http` (already registered in `AppModule`) wraps every successful controller result as `{ success: true, statusCode, message: "OK", data }`. Controllers return the response DTO, never the envelope. See `nestjs-feature-architecture` → `error-handling.md`.
 
 ## Core concept: four kinds of checks
 
@@ -110,7 +120,7 @@ export class CustomerResponseMapper {
 ```ts
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { zodBody, zodQuery } from '../../../core/validation/presets';
+import { zodBody, zodParam } from '../../../core/validation/presets';
 import type { CreateCustomerDto } from '../dto/create-customer.dto';
 import { createCustomerSchema } from '../dto/create-customer.dto';
 import { customerIdSchema } from '../dto/customer-id.dto';
@@ -141,7 +151,7 @@ export class CustomersController {
 
   @Get(':id')
   async findOne(
-    @Param('id', zodQuery(customerIdSchema)) id: string,
+    @Param('id', zodParam(customerIdSchema)) id: string,
   ): Promise<CustomerResponseDto> {
     const customer = await this.getCustomer.execute(id);
     return CustomerResponseMapper.toResponse(customer);
@@ -152,10 +162,10 @@ export class CustomersController {
 ## NestJS implementation notes
 
 - **`import type` for Zod-inferred types used in decorated parameters** (`import type { CreateCustomerDto }`). This repo uses `isolatedModules` + `emitDecoratorMetadata`; a value import fails with TS1272. `tsc` catches it, so it can't slip through. Don't add a lint auto-fix for type imports: it can't see decorator metadata and may break DI imports.
-- `@Body({ schema })` exists in NestJS 12 but **does nothing unless a `StandardSchemaValidationPipe` is registered**. This project uses `zodBody` / `zodQuery` instead; don't mix the two.
+- `@Body({ schema })` exists in NestJS 12 but **does nothing unless a `StandardSchemaValidationPipe` is registered**. This project uses `zodBody` / `zodQuery` / `zodParam` instead; don't mix the two.
 - Query strings and params are strings: use `z.coerce.number()`, `z.coerce.boolean()` and so on.
 - The controller builds the Input inline. There is no mapper class for copying request fields.
-- The controller calls exactly one service and declares its return type (`Promise<CustomerResponseDto>`).
+- The controller calls exactly one service and declares its return type (`Promise<CustomerResponseDto>`). The global `ResponseInterceptor` wraps it in `{ success, statusCode, message, data }`; the controller never builds that envelope.
 
 ## CRM considerations
 
@@ -178,6 +188,8 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 | Logic inside a response DTO | DTOs are types only; logic goes in the mapper |
 | A top-level `inputs/` folder, or a mapper class that copies request fields | `services/<verb>-<entity>.input.ts` next to its service; build it inline in the controller |
 | Response shape changes edited in the domain | edit only `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
+| Controller returns `{ success: true, data: … }` itself | return the response DTO; `ResponseInterceptor` wraps it |
+| `zodQuery` on a route param | `zodParam` (same 400 behaviour, clearer intent) |
 
 ## Decision rules
 
@@ -190,7 +202,7 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 ## Practical checklist
 
 - [ ] Request schema in `dto/<verb>-<entity>.dto.ts`, with the `z.infer` type exported as `<Verb><Entity>Dto`
-- [ ] Body: `zodBody`; params/query: `zodQuery`; ids: `z.guid()`
+- [ ] Body: `zodBody`; query: `zodQuery`; params: `zodParam`; ids: `z.guid()`
 - [ ] String limits match the Dataverse columns
 - [ ] Inferred types imported with `import type` in controllers
 - [ ] Controller builds the Input (body + params + user) and calls one service

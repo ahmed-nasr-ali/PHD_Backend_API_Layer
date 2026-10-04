@@ -3,18 +3,18 @@ import { ConfigService } from '@nestjs/config';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { DynamicsWebApi } from 'dynamics-web-api';
 import { DataverseConfig } from './config/dataverse.config';
-import { TokenProvider } from './crm-token/token-provider';
+import { TokenProvider } from './crm-token/token.provider';
 
 export const dataverseConfigProvider: Provider = {
   provide: DataverseConfig,
   inject: [ConfigService],
   useFactory: (config: ConfigService) =>
-    new DataverseConfig(
-      config.getOrThrow<string>('DV_URL'),
-      config.getOrThrow<string>('DV_TENANT_ID'),
-      config.getOrThrow<string>('DV_CLIENT_ID'),
-      config.getOrThrow<string>('DV_CLIENT_SECRET'),
-    ),
+    new DataverseConfig({
+      url: config.getOrThrow<string>('DV_URL'),
+      tenantId: config.getOrThrow<string>('DV_TENANT_ID'),
+      clientId: config.getOrThrow<string>('DV_CLIENT_ID'),
+      clientSecret: config.getOrThrow<string>('DV_CLIENT_SECRET'),
+    }),
 };
 
 export const msalProvider: Provider = {

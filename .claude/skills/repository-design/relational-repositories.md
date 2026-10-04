@@ -137,7 +137,7 @@ const row = result.recordset[0];
 | `pg` parses `date` to a JS `Date` at **local** midnight | select `::text` (pg) / `CONVERT(char(10), …, 23)` (mssql) and parse as UTC |
 | SQL Server returns `uniqueidentifier` in **upper case** | lower-case ids in `customer.table-mapper.ts` |
 | PostgreSQL `=` is case-sensitive; Dataverse/SQL Server default collation is not | the domain lower-cases emails on `create()` |
-| Unique violation codes differ | pg `23505` (+ `constraint` name); mssql `RequestError.number` 2627 / 2601 → same `ApplicationError` |
+| Unique violation codes differ | pg `23505` (+ `constraint` name); mssql `RequestError.number` 2627 / 2601 → same `BusinessError` |
 | Offset paging is tempting in SQL | keep the cursor contract (keyset pagination) |
 | Transactions now exist | still expose atomicity via repository methods, not leaked transaction objects |
 

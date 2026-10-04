@@ -20,7 +20,9 @@ The guide builds on code that is already in the repository rather than inventing
 | Existing code | What it does |
 | --- | --- |
 | [`src/core/dataverse/`](../src/core/dataverse/) | Connection to Dataverse: MSAL client-credentials auth (`TokenProvider` / `MsalTokenProvider`), a generic `DataverseClient` (abstract class) implemented with the `dynamics-web-api` library, a retry-on-401 policy and `DataverseException`. |
-| [`src/core/validation/`](../src/core/validation/) | Zod-based request validation: `zodBody(schema)` (422 on failure) and `zodQuery(schema)` (400 on failure). |
+| [`src/core/validation/`](../src/core/validation/) | Zod-based request validation: `zodBody(schema)` (422 on failure), `zodQuery(schema)` and `zodParam(schema)` (400 on failure). |
+| [`src/core/errors/`](../src/core/errors/) | Framework-free `BusinessError` base class + `BusinessErrorKind` enum for errors the business layers raise on purpose, and the `ErrorCode` enum of codes the system itself returns. |
+| [`src/core/http/`](../src/core/http/) | One response envelope for every response: global exception filters (business, Dataverse, HTTP/validation, catch-all) and a `ResponseInterceptor` for successes, registered by `HttpModule` (chapter 12). |
 
 The CRM is therefore concrete: **Dataverse Web API (OData v4) authenticated with Microsoft Entra ID through MSAL**. The guide uses that technology. It does not use a generic "CRM".
 
@@ -237,7 +239,7 @@ The notes identify three kinds of validation. The classification is correct:
 
 | Kind | Question it answers | Needs stored data? | Where |
 | --- | --- | --- | --- |
-| **Request (input) validation** | Is the request well-formed? (`email` is an email, `birthDate` is a date, `total` > 0) | No | Zod schema in `dto/` + `zodBody` / `zodQuery` pipe |
+| **Request (input) validation** | Is the request well-formed? (`email` is an email, `birthDate` is a date, `total` > 0) | No | Zod schema in `dto/` + `zodBody` / `zodQuery` / `zodParam` pipe |
 | **Business / domain validation** | Is this allowed by the business? (customer must be adult, email unique, customer must be active to order) | Sometimes | `domain/` model (rules on the data itself) or service (rules that need lookups) |
 | **Storage constraints** | Last line of defence if everything above is bypassed or races | — | Dataverse: required columns, max lengths, **alternate keys**, plugins. PostgreSQL / SQL Server: `NOT NULL`, `UNIQUE`, `CHECK`, foreign keys. |
 
@@ -303,7 +305,14 @@ export const customerIdSchema = z.guid();
 async create(@Body(zodBody(createCustomerSchema)) dto: CreateCustomerDto) { … }
 
 @Get(':id')
-async findOne(@Param('id', zodQuery(customerIdSchema)) id: string) { … }
+async findOne(@Param('id', zodParam(customerIdSchema)) id: string) { … }
+```
+
+`zodQuery(schema)` validates query strings the same way (400). A failure returns the error envelope (chapter 12) with `code: "VALIDATION_FAILED"` and one `errors` entry per issue; `field` is the dotted path, or the param name / source (`id`, `body`) for a root-level issue:
+
+```json
+{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+  "errors": [{ "field": "email", "message": "Invalid email address" }] }
 ```
 
 Details that matter:
@@ -321,9 +330,9 @@ The notes say "Nest can use a Zod schema directly via `StandardSchemaValidationP
 | Approach | Pros | Cons |
 | --- | --- | --- |
 | `@Body({ schema })` + global `StandardSchemaValidationPipe` | built into Nest; works with any Standard Schema library | silent no-op if the pipe isn't registered; error shape and status are configured globally |
-| `@Body(zodBody(schema))` (this project) | explicit; consistent error body `{ message, errors: [{ field, message }] }`; deliberate 422 for bodies and 400 for params/query | project-specific helper |
+| `@Body(zodBody(schema))` (this project) | explicit; consistent error envelope with `code: "VALIDATION_FAILED"` and `errors: [{ field, message }]`; deliberate 422 for bodies and 400 for params/query; async refinements supported | project-specific helper |
 
-**Use `zodBody` / `zodQuery`.** They already exist, they encode a deliberate status-code policy, and they cannot be silently disabled.
+**Use `zodBody` / `zodQuery` / `zodParam`.** They already exist, they encode a deliberate status-code policy, and they cannot be silently disabled.
 
 > **Review of the original.** ✅ The three kinds of validation and the "do I need the database?" rule are correct and valuable. 🔧 "Database constraints" needs a CRM translation: Dataverse has alternate keys, required levels and plugins, not SQL constraints. ⚠️ `@Body({ schema })` is presented as sufficient; it needs a registered pipe. 💡 Missing: the check-then-insert race, mirroring column limits, `z.guid()` for Dataverse ids, and authorisation as a storage-dependent rule.
 
@@ -400,7 +409,7 @@ It never calls repositories, never contains business `if`s and never sees Datave
 ```ts
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { zodBody, zodQuery } from '../../../core/validation/presets';
+import { zodBody, zodParam } from '../../../core/validation/presets';
 import type { CreateCustomerDto } from '../dto/create-customer.dto';
 import { createCustomerSchema } from '../dto/create-customer.dto';
 import { customerIdSchema } from '../dto/customer-id.dto';
@@ -431,7 +440,7 @@ export class CustomersController {
 
   @Get(':id')
   async findOne(
-    @Param('id', zodQuery(customerIdSchema)) id: string,
+    @Param('id', zodParam(customerIdSchema)) id: string,
   ): Promise<CustomerResponseDto> {
     const customer = await this.getCustomer.execute(id);
     return CustomerResponseMapper.toResponse(customer);
@@ -473,6 +482,8 @@ export class CustomerResponseMapper {
 ```
 
 **Never return a domain object directly** (the notes do this in `getUser(@Param('id') id) { return this.getUserService.execute(id); }`). Serialising a class instance exposes every public field, adding a field to the domain silently changes the public API, and getters such as `fullName` are **not** serialised by `JSON.stringify`.
+
+**The response DTO is the `data` of the envelope.** The global `ResponseInterceptor` (`src/core/http/`) wraps whatever the controller returns, so `findOne` above produces `{ "success": true, "statusCode": 200, "message": "OK", "data": { "id": "…", "fullName": "…", … } }`. Controllers return the response DTO and never build the envelope themselves. File downloads (`StreamableFile`) and 204 responses are not wrapped. Error responses use the same envelope (chapter 12).
 
 ### The notes' "frontend wants a different shape" example: correct
 
@@ -669,26 +680,26 @@ Design decisions, and how they correct the notes:
 
 ```ts
 // domain/customer.errors.ts
-import { ApplicationError } from '../../../core/errors/application-error';
+import { BusinessError, BusinessErrorKind } from '../../../core/errors/business-error';
 
-export class CustomerNotFoundError extends ApplicationError {
-  readonly kind = 'not_found';
+export class CustomerNotFoundError extends BusinessError {
+  readonly kind = BusinessErrorKind.NotFound;
 
   constructor(id: string) {
     super(`Customer ${id} was not found`, 'CUSTOMER_NOT_FOUND');
   }
 }
 
-export class EmailAlreadyInUseError extends ApplicationError {
-  readonly kind = 'conflict';
+export class EmailAlreadyInUseError extends BusinessError {
+  readonly kind = BusinessErrorKind.Conflict;
 
   constructor(email: string) {
     super(`Email ${email} is already in use`, 'EMAIL_ALREADY_IN_USE');
   }
 }
 
-export class CustomerMustBeAdultError extends ApplicationError {
-  readonly kind = 'rule_violation';
+export class CustomerMustBeAdultError extends BusinessError {
+  readonly kind = BusinessErrorKind.RuleViolation;
 
   constructor() {
     super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
@@ -696,7 +707,7 @@ export class CustomerMustBeAdultError extends ApplicationError {
 }
 ```
 
-`ApplicationError` is a small, framework-free base class (chapter 12). Errors do **not** extend `HttpException`; HTTP status is decided at the edge.
+`BusinessError` is a small, framework-free base class (chapter 12). Errors do **not** extend `HttpException`; HTTP status is decided at the edge.
 
 > **Review of the original.** ✅ Business validation in the service, or in `User.create()` for rules that must hold for every entry point, is correct and important. 💡 Missing: the create-vs-restore distinction, which matters a lot with a CRM where other people write data. 🔧 Positional constructors, mutable fields, `age` instead of birth date, and `throw new Error('…')` (generic errors become 500s).
 
@@ -1206,7 +1217,7 @@ export interface Page<T> {
 | Formatted values (choice labels, currency strings) | request the `OData.Community.Display.V1.FormattedValue` annotation only for display needs; never base logic on labels. |
 | Date-only vs date-time columns | date-only columns come as `"YYYY-MM-DD"`; date-time columns as UTC ISO strings (depending on the column's behaviour). Parse explicitly in the table-mapper. |
 | Atomic multi-record writes | `$batch` with a changeset (`startBatch` / `executeBatch`). Expose as **one** repository method (for example `createWithLines(order)`), not as a generic transaction API. |
-| Plugin errors | synchronous plugins can reject an operation with a business message. Decide per case whether to translate into an `ApplicationError` (if the plugin enforces a known rule) or let it surface as a 502. |
+| Plugin errors | synchronous plugins can reject an operation with a business message. Decide per case whether to translate into a `BusinessError` (if the plugin enforces a known rule) or let it surface as a 502. |
 
 > **Review of the original.** ✅ "CRM DTO → CRM mapper → domain" and "CRM complexity stays in infrastructure" (sections 4–7) are correct. ❌ A `CrmClient` + `CrmAuthService` per feature duplicates connection logic; it lives once in `core/dataverse`. ⚠️ The sample JSON and `GET /users/123?$expand=units` are not real Dataverse shapes. 💡 Missing: `$select`, null handling, choices, lookups and `@odata.bind`, read-only columns, OData injection, pagination via `nextLink`, ETags, batches.
 
@@ -1226,9 +1237,9 @@ DataverseClient (abstract)  ◄── what repositories inject
 DynamicsWebApiClient        ── wraps every call: retry policy + error normalisation
       │ uses
 DynamicsWebApi (library)    ── onTokenRefresh → TokenProvider.getToken()
-DataverseRetryPolicy        ── on 401: TokenProvider.getToken(forceRefresh) and retry once
+DataverseRetryPolicy (abstract) ◄── TokenRefreshRetryPolicy (on 401: TokenProvider.getToken(forceRefresh) and retry once)
 TokenProvider (abstract)    ◄── MsalTokenProvider (client credentials, ConfidentialClientApplication)
-DataverseConfig             ── DV_URL, DV_TENANT_ID, DV_CLIENT_ID, DV_CLIENT_SECRET (getOrThrow)
+DataverseConfig             ── { url, tenantId, clientId, clientSecret } from DV_URL, DV_TENANT_ID, DV_CLIENT_ID, DV_CLIENT_SECRET (getOrThrow)
 ```
 
 ### Review of the notes' `CrmClient` example
@@ -1246,12 +1257,12 @@ async getUser(id: string) {
 | Returns an Axios response, not data | `DataverseClient` returns typed data |
 | Entity-specific method (`getUser`) on the shared client | client is generic (`retrieve(table, id, select)`); entity knowledge lives in repositories |
 | No error handling | `DynamicsWebApiClient` normalises every failure to `DataverseException` with `status` and `cause` |
-| No token refresh on 401 | `DataverseRetryPolicy` retries once with a force-refreshed token |
+| No token refresh on 401 | `TokenRefreshRetryPolicy` (the `DataverseRetryPolicy` implementation) retries once with a force-refreshed token |
 | Hand-built URLs | `dynamics-web-api` builds OData URLs and encodes parameters |
 
 ### Gaps in the current client (proposed follow-ups, not yet implemented)
 
-1. **Throttling (429).** Dataverse returns `429 Too Many Requests` with a `Retry-After` header when service-protection limits are hit. `dynamics-web-api` does not retry these, and `DataverseRetryPolicy` only handles 401. Add a bounded retry honouring `Retry-After` for idempotent reads at minimum.
+1. **Throttling (429).** Dataverse returns `429 Too Many Requests` with a `Retry-After` header when service-protection limits are hit. `dynamics-web-api` does not retry these, and `TokenRefreshRetryPolicy` only handles 401. Add a bounded retry honouring `Retry-After` for idempotent reads at minimum, as a new `DataverseRetryPolicy` implementation (or a decorator wrapping the current one) and one `useClass` change in `DataverseModule`; `DynamicsWebApiClient` does not change.
 2. **Pagination.** `retrieveMultiple` drops `oDataNextLink` (chapter 10).
 3. **Error detail.** `DataverseException` keeps the HTTP status but not the Dataverse error `code` (for example the duplicate-key code). Repositories need the code to translate specific failures reliably.
 4. **`$expand` support** on `retrieve` / `retrieveMultiple`.
@@ -1276,37 +1287,86 @@ Dataverse Web API  (HTTP 404 / 412 / 429 / 5xx, plugin error)
    ↓
 DynamicsWebApiClient → DataverseException { status, cause }         core/dataverse
    ↓
-Repository: expected errors → null or ApplicationError               feature infrastructure
+Repository: expected errors → null or BusinessError               feature infrastructure
             unexpected errors → rethrow DataverseException
    ↓
-Service: business outcomes → ApplicationError                         services/ + domain/
+Service: business outcomes → BusinessError                         services/ + domain/
    ↓
-Global exception filters                                              core/errors
-   ApplicationError  → 404 / 409 / 422 / 403 with { code, message }
-   DataverseException → 502 / 503, details logged, not exposed
-   HttpException (validation pipes) → 400 / 422 (Nest default handling)
-   anything else → 500 (Nest default)
+Global exception filters                                              core/http/filters
+   BusinessError      → 404 / 409 / 422 / 403, code = error.code
+   DataverseException → 502 / 503, code = UPSTREAM_UNAVAILABLE, details logged, not exposed
+   HttpException      → its own status; validation pipes: 400 / 422, code = VALIDATION_FAILED + errors
+   anything else      → 500, code = INTERNAL_ERROR, details logged, not exposed
 ```
 
-### Application errors
+### One envelope for every response
+
+Every response, success or error, has the same shape, so clients parse one structure and switch on `code`:
+
+```jsonc
+// success (ResponseInterceptor wraps the controller's response DTO)
+{ "success": true,  "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
+// error (exception filters)
+{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "Customer 42 was not found", "data": null }
+// validation error
+{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+  "errors": [{ "field": "email", "message": "Invalid email address" }] }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `success` | `true` for 2xx, `false` otherwise |
+| `statusCode` | same as the HTTP status (convenience for clients) |
+| `code` | errors only: stable, machine-readable (`CUSTOMER_NOT_FOUND`, `VALIDATION_FAILED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE`, `INTERNAL_ERROR`) |
+| `message` | human-readable; may change or be translated, so clients must not branch on it |
+| `data` | the success payload; always `null` on errors |
+| `errors` | optional field-level problems (`{ field?, message }[]`) |
+
+The shape lives in one place, `ApiResponseBuilder` (`src/core/http/api-response.ts`). Adding a field later is safe for clients; removing or renaming one is a breaking change that needs a deprecation period or a new API version.
+
+The codes the system itself returns are one enum, so none of them is hand-typed in a filter:
 
 ```ts
-// core/errors/application-error.ts (proposed)
-export type ApplicationErrorKind =
-  | 'not_found'
-  | 'conflict'
-  | 'rule_violation'
-  | 'forbidden';
+// core/errors/error-code.ts
+/**
+ * Codes the system itself returns in the error envelope.
+ * Business errors bring their own codes (e.g. `CUSTOMER_NOT_FOUND`).
+ * Part of the API contract: never rename or remove a value.
+ */
+export enum ErrorCode {
+  ValidationFailed = 'VALIDATION_FAILED',
+  UpstreamUnavailable = 'UPSTREAM_UNAVAILABLE',
+  InternalError = 'INTERNAL_ERROR',
+  HttpError = 'HTTP_ERROR', // an HttpException whose status has no name
+}
+```
+
+Other `HttpException`s use the status name (`NOT_FOUND`, `BAD_REQUEST`, …). Every 500, whatever raised it, is `INTERNAL_ERROR`.
+
+### Business errors
+
+`src/core/errors/` is framework-free (no NestJS, no HTTP), so `domain/` and `services/` can import it.
+
+```ts
+// core/errors/business-error.ts
+/** What went wrong, from the business point of view. Each caller (HTTP, CLI, queue) maps it its own way. */
+export enum BusinessErrorKind {
+  NotFound = 'not_found',
+  Conflict = 'conflict',
+  RuleViolation = 'rule_violation',
+  Forbidden = 'forbidden',
+}
 
 /** Base class for errors the business layers raise on purpose. Framework-free. */
-export abstract class ApplicationError extends Error {
-  abstract readonly kind: ApplicationErrorKind;
+export abstract class BusinessError extends Error {
+  abstract readonly kind: BusinessErrorKind;
 
   constructor(
     message: string,
     readonly code: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = new.target.name;
   }
 }
@@ -1314,73 +1374,126 @@ export abstract class ApplicationError extends Error {
 
 ### Filters
 
+The filters live in `src/core/http/filters/`, not in `core/errors/`, so that the framework-free error classes never pull NestJS into the domain.
+
+**A base class logs and writes the response; each filter only translates** (Template Method). Any response ≥ 500 is logged here, once, whichever filter produced it, so no filter can forget. Writing goes through `HttpAdapterHost`, so the filters don't depend on Express:
+
 ```ts
-// core/errors/application-error.filter.ts (proposed)
-const STATUS_BY_KIND: Record<ApplicationErrorKind, HttpStatus> = {
-  not_found: HttpStatus.NOT_FOUND,
-  conflict: HttpStatus.CONFLICT,
-  rule_violation: HttpStatus.UNPROCESSABLE_ENTITY,
-  forbidden: HttpStatus.FORBIDDEN,
+// core/http/filters/api-exception.filter.ts
+@Injectable()
+export abstract class ApiExceptionFilter<E> implements ExceptionFilter<E> {
+  private readonly logger = new Logger(this.constructor.name); // the subclass name
+
+  constructor(private readonly adapterHost: HttpAdapterHost) {}
+
+  catch(exception: E, host: ArgumentsHost): void {
+    const body = this.toResponse(exception);
+
+    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(this.describe(exception), this.stackOf(exception));
+    }
+
+    const { httpAdapter } = this.adapterHost;
+    const response = host.switchToHttp().getResponse();
+
+    // A stream that fails mid-way has already sent its headers: just close it.
+    if (httpAdapter.isHeadersSent(response)) {
+      httpAdapter.end(response);
+      return;
+    }
+    httpAdapter.reply(response, body, body.statusCode);
+  }
+
+  /** Pure translation, so it can be unit-tested without a request. */
+  protected abstract toResponse(exception: E): ApiErrorResponse;
+
+  /** What the log says about a server-side failure. Override to add details (e.g. an upstream status). */
+  protected describe(exception: E): string {
+    return exception instanceof Error ? exception.message : String(exception);
+  }
+
+  private stackOf(exception: E): string | undefined {
+    return exception instanceof Error ? exception.stack : undefined;
+  }
+}
+```
+
+`toResponse()` decides what the **client** sees; `describe()` decides what the **log** says.
+
+```ts
+// core/http/filters/business-error.filter.ts
+const STATUS_BY_KIND: Record<BusinessErrorKind, HttpStatus> = {
+  [BusinessErrorKind.NotFound]: HttpStatus.NOT_FOUND,
+  [BusinessErrorKind.Conflict]: HttpStatus.CONFLICT,
+  [BusinessErrorKind.RuleViolation]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [BusinessErrorKind.Forbidden]: HttpStatus.FORBIDDEN,
 };
 
-@Catch(ApplicationError)
-export class ApplicationErrorFilter implements ExceptionFilter {
-  catch(error: ApplicationError, host: ArgumentsHost) {
-    const status = STATUS_BY_KIND[error.kind];
-    host.switchToHttp().getResponse<Response>().status(status).json({
-      statusCode: status,
-      code: error.code,
-      message: error.message,
-    });
+@Catch(BusinessError)
+export class BusinessErrorFilter extends ApiExceptionFilter<BusinessError> {
+  protected toResponse(error: BusinessError): ApiErrorResponse {
+    return ApiResponseBuilder.error(
+      STATUS_BY_KIND[error.kind],
+      error.code,
+      error.message,
+    );
   }
 }
 ```
 
 ```ts
-// core/errors/dataverse-exception.filter.ts (proposed)
+// core/http/filters/dataverse-exception.filter.ts
 /** Last-resort translation of Dataverse failures that no repository handled. */
 @Catch(DataverseException)
-export class DataverseExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(DataverseExceptionFilter.name);
-
-  catch(error: DataverseException, host: ArgumentsHost) {
-    this.logger.error(
-      `Dataverse call failed (status ${error.status ?? 'n/a'}): ${error.message}`,
-      error.stack,
-    );
-
+export class DataverseExceptionFilter extends ApiExceptionFilter<DataverseException> {
+  protected toResponse(error: DataverseException): ApiErrorResponse {
     const status =
       error.status === 429 || error.status === 503
         ? HttpStatus.SERVICE_UNAVAILABLE
         : HttpStatus.BAD_GATEWAY;
 
-    host.switchToHttp().getResponse<Response>().status(status).json({
-      statusCode: status,
-      message: 'The data service is unavailable. Please try again later.',
-    });
+    return ApiResponseBuilder.error(
+      status,
+      ErrorCode.UpstreamUnavailable,
+      'The data service is unavailable. Please try again later.',
+    );
+  }
+
+  // The default log line lacks the Dataverse status (429 vs 400 vs 503).
+  protected describe(error: DataverseException): string {
+    return `Dataverse call failed (status ${error.status ?? 'n/a'}): ${error.message}`;
   }
 }
 ```
 
-Register both as `APP_FILTER` providers in `AppModule` (chapter 13).
+The other two filters follow the same pattern:
+
+| Filter | Catches | Result |
+| --- | --- | --- |
+| `HttpExceptionFilter` | `HttpException` (validation pipes, `NotFoundException`, unknown routes, …) | its own status; `code` from the body (`VALIDATION_FAILED`) or the status name (`NOT_FOUND`); validation `errors` carried through; a `message` array becomes one `errors` entry per message; a 500 is answered with `INTERNAL_ERROR` and a generic message, because its text may hold internal details |
+| `UnhandledExceptionFilter` | everything else (`@Catch()`) | 500 `INTERNAL_ERROR` with a generic message |
+
+Successes are wrapped by `ResponseInterceptor` (`core/http/response.interceptor.ts`); it skips `StreamableFile`, 204 responses and non-HTTP contexts.
+
+`HttpModule` (`core/http/http.module.ts`) registers the four filters as `APP_FILTER` and the interceptor as `APP_INTERCEPTOR`; `AppModule` imports it once (chapter 13). **Order matters:** Nest tries global filters in reverse registration order and uses the first whose `@Catch` matches, so the catch-all must be registered **first**, otherwise it would turn every error into a 500. A new error source (e.g. a PostgreSQL error filter after a migration) is one new `ApiExceptionFilter` subclass and one `APP_FILTER` line after the catch-all.
 
 ### Same error, different callers
 
 The domain and services throw an error with a `kind` and a `code` only; they never know the HTTP status. **Each caller maps the error its own way.** The HTTP filter above is one caller; a CLI command or a queue consumer calling the same service is another:
 
-| `kind` | HTTP (`ApplicationErrorFilter`) | CLI (example) |
+| `kind` | HTTP (`BusinessErrorFilter`) | CLI (example) |
 | --- | --- | --- |
-| `rule_violation` | 422 | print message, exit 1 |
-| `conflict` | 409 | print message, exit 1 |
-| `not_found` | 404 | print message, exit 1 |
-| `forbidden` | 403 | print message, exit 1 |
+| `RuleViolation` | 422 | print message, exit 1 |
+| `Conflict` | 409 | print message, exit 1 |
+| `NotFound` | 404 | print message, exit 1 |
+| `Forbidden` | 403 | print message, exit 1 |
 
 ```ts
 // A CLI command calling the same service: no HTTP involved.
 try {
   await createCustomer.execute(input);
 } catch (error) {
-  if (error instanceof ApplicationError) {
+  if (error instanceof BusinessError) {
     console.error(`${error.code}: ${error.message}`);
     process.exitCode = 1;
     return;
@@ -1395,10 +1508,11 @@ try {
 | --- | --- |
 | Never `throw new Error('User not found')` (as in the notes' `OrderService`) | it becomes a 500 and the client can't distinguish it |
 | Never throw `HttpException` (`NotFoundException`) from services or domain | ties business code to HTTP; a queue consumer would receive an HTTP exception |
-| No HTTP status codes in `domain/` or `services/`, not even in comments | write `// kind: conflict`, not `// → 409`; only `core/errors/` filters and controllers know HTTP |
+| No HTTP status codes in `domain/` or `services/`, not even in comments | write `// kind: Conflict`, not `// → 409`; only `core/http/` and controllers know HTTP |
 | Never `catch (DataverseException)` in a service | the service would know about the CRM. Repositories translate. |
 | Translate only **expected** infrastructure errors in the repository | 404 → `null`, duplicate key → `EmailAlreadyInUseError`; everything else propagates |
-| Never expose Dataverse messages to API clients | they can contain schema names and internal details; log them instead |
+| Never expose Dataverse messages or unexpected error text to API clients | they can contain schema names, credentials and internal details; log them instead |
+| Never build the envelope in a controller | return the response DTO; `ResponseInterceptor` and the filters own the shape |
 | Keep `cause` when wrapping | `DataverseException` already does (`{ cause: error }`) |
 
 Without the `DataverseExceptionFilter`, Nest turns a `DataverseException` into a generic 500. That is safe but wrong: the failure is upstream (502/503), and a 503 tells clients that retrying later may help.
@@ -1443,16 +1557,15 @@ export class OrdersModule {}
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    HttpModule, // global exception filters + ResponseInterceptor (chapter 12)
     CustomersModule,
     OrdersModule,
-  ],
-  providers: [
-    { provide: APP_FILTER, useClass: ApplicationErrorFilter },
-    { provide: APP_FILTER, useClass: DataverseExceptionFilter },
   ],
 })
 export class AppModule {}
 ```
+
+`HttpModule` (`src/core/http`) registers the global filters and the response interceptor itself, so `AppModule` has no `APP_FILTER` providers and feature modules never register filters.
 
 Corrections to the notes' module:
 
@@ -1508,13 +1621,14 @@ The notes contain two structures. The first (`users/` with root-level `mappers/`
 ```text
 src/
 ├── main.ts
-├── app.module.ts                         # ConfigModule, feature modules, APP_FILTERs
+├── app.module.ts                         # ConfigModule, HttpModule, feature modules
 ├── core/                                 # cross-cutting technical building blocks
 │   ├── dataverse/                        # (exists) connection: auth, client, retry, errors
 │   │   ├── config/  crm-token/  data-access/  errors/  policies/
 │   │   └── index.ts                      # public API: DataverseModule, DataverseClient, DataverseException
-│   ├── validation/                       # (exists) zodBody / zodQuery pipes
-│   └── errors/                           # (proposed) ApplicationError + global filters
+│   ├── validation/                       # (exists) zodBody / zodQuery / zodParam pipes
+│   ├── errors/                           # (exists) BusinessError + BusinessErrorKind + ErrorCode, framework-free
+│   └── http/                             # (exists) response envelope, global filters, ResponseInterceptor, HttpModule
 └── modules/
     ├── customers/
     │   ├── customers.module.ts
@@ -1595,7 +1709,7 @@ Failure paths:
 ### `GET /customers/:customerId/overview`
 
 ```text
-  zodQuery(z.guid())                       400 if not a GUID
+  zodParam(z.guid())                       400 if not a GUID
   CustomerOverviewController.get
   GetCustomerOverviewService.execute
       Promise.all:
@@ -1786,7 +1900,7 @@ Not decided now, and not needed now. The port allows any of `pg`/`mssql` directl
 | 1 | Which interfaces remain unchanged? | `CustomerRepository`, `OrderRepository` (abstract repositories), all `Input`/`Result` types. |
 | 2 | Which implementation is replaced? | `DataverseOrderRepository` → `PostgresOrderRepository` first; later `DataverseCustomerRepository` → `PostgresCustomerRepository`. |
 | 3 | Which mapper changes? | none is *changed*: `repositories/dataverse/order.table-mapper.ts` is deleted and `repositories/postgres/order.table-mapper.ts` is added. Response mappers are untouched. |
-| 4 | Which modules remain unchanged? | `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, `core/validation`, `ApplicationErrorFilter`. Feature modules change **one provider line** (and their technology import). |
+| 4 | Which modules remain unchanged? | `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, `core/validation`, `BusinessErrorFilter`. Feature modules change **one provider line** (and their technology import). |
 | 5 | Which tests remain useful? | all domain and service tests; e2e tests with fakes; **repository contract tests**, which now run against `PostgresOrderRepository` too. |
 | 6 | Which CRM-specific code can be removed? | `repositories/dataverse/` of migrated features; eventually `core/dataverse`, `DataverseExceptionFilter`, MSAL config and `DV_*` env vars. |
 | 7 | Which new database code is needed? | connection module (pool, config, health check), schema migrations, row types, row mappers, repositories, a DB-error filter for unexpected failures, transaction support where needed. |
@@ -1794,7 +1908,7 @@ Not decided now, and not needed now. The port allows any of `pg`/`mssql` directl
 | 9 | What happens to CRM ids and relationships? | Because ids are GUIDs generated or accepted as-is, **keep them as `uuid` primary keys**. No remapping table is needed, and URLs/clients holding ids keep working. Lookups become foreign keys (`_new_customerid_value` → `orders.customer_id`). Choice integers become text/enum values. |
 | 10 | Which decisions today make this easier or harder? | see below |
 
-**Decisions that make migration easier (all recommended above):** GUID string ids generated by the app; domain models free of CRM names and integers; repositories taking and returning domain objects; cursor-based pagination in abstract repositories; email normalisation in the domain; errors translated to `ApplicationError` in repositories; repository contract tests.
+**Decisions that make migration easier (all recommended above):** GUID string ids generated by the app; domain models free of CRM names and integers; repositories taking and returning domain objects; cursor-based pagination in abstract repositories; email normalisation in the domain; errors translated to `BusinessError` in repositories; repository contract tests.
 
 **Decisions that make it harder:** services calling `DataverseClient` directly; OData strings or `$expand` options in abstract repository signatures; `CustomerTableRow` used outside `repositories/dataverse/`; offset pagination promised to the frontend; relying on CRM plugins/flows for business rules without documenting them.
 
@@ -1859,7 +1973,7 @@ Dataverse connection concerns live once.      core/dataverse: MSAL, DataverseCli
 Mapping happens at both edges.                Table ↔ domain (CustomerTableMapper, repositories/dataverse/);
                                               domain → response DTO (CustomerResponseMapper, mappers/).
 
-Errors are translated at each boundary.       DataverseException → null / ApplicationError → HTTP status.
+Errors are translated at each boundary.       DataverseException → null / BusinessError → HTTP status.
 
 PostgreSQL / SQL Server can be added later.   repositories/postgres/ behind the same abstract class. The data, the platform logic
                                               and the semantics still need a real migration plan.

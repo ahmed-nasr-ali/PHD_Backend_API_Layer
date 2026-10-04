@@ -102,7 +102,7 @@ The abstract repository is the reason Dataverse quirks (OData, choices, nextLink
 
 ## PostgreSQL / SQL Server considerations
 
-See [relational-repositories.md](relational-repositories.md). New implementations must reproduce the **observable behaviour** of the existing one: `null` for not found, the same `ApplicationError`s for conflicts, the same normalisation. Contract tests enforce this ([testing.md](testing.md)).
+See [relational-repositories.md](relational-repositories.md). New implementations must reproduce the **observable behaviour** of the existing one: `null` for not found, the same `BusinessError`s for conflicts, the same normalisation. Contract tests enforce this ([testing.md](testing.md)).
 
 ## Common mistakes
 

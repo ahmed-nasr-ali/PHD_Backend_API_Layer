@@ -7,10 +7,10 @@
 | Status | Typical meaning | Handling |
 | --- | --- | --- |
 | 404 | record not found | repository returns `null` (single lookups) |
-| 400 | malformed request (bad column, bad filter, value too long) or a plugin rejected the operation | usually our bug → rethrow (502). If a known plugin enforces a known rule, translate to an `ApplicationError`. |
+| 400 | malformed request (bad column, bad filter, value too long) or a plugin rejected the operation | usually our bug → rethrow (502). If a known plugin enforces a known rule, translate to a `BusinessError`. |
 | 401 | token invalid after retry | rethrow (502); configuration problem |
 | 403 | the application user lacks a privilege | rethrow (502); security-role configuration |
-| 412 | precondition failed (ETag mismatch on `If-Match`; also some duplicate-key cases) | concurrency → `ApplicationError` `conflict`; confirm the code in your environment |
+| 412 | precondition failed (ETag mismatch on `If-Match`; also some duplicate-key cases) | concurrency → `BusinessError` `Conflict`; confirm the code in your environment |
 | 429 | throttled | rethrow → filter returns 503 |
 | 5xx | Dataverse problem | rethrow → 502/503 |
 
@@ -18,8 +18,8 @@
 
 1. **Repositories translate only expected errors with business meaning:**
    - 404 on `retrieve` → `null`
-   - duplicate alternate key on create → e.g. `EmailAlreadyInUseError` (`conflict`)
-   - ETag mismatch → a `conflict` error
+   - duplicate alternate key on create → e.g. `EmailAlreadyInUseError` (`Conflict`)
+   - ETag mismatch → a `Conflict` error
 2. **Everything else is rethrown unchanged.** The global `DataverseExceptionFilter` logs it and returns 502 (or 503 for 429/503) without exposing Dataverse text.
 3. **Services never catch `DataverseException`.**
 4. **Mapping failures** (missing required column, unknown choice) throw `DataverseException` with a clear message. They are data-quality problems in the CRM.
@@ -44,4 +44,4 @@ async findById(id: string): Promise<Customer | null> {
 }
 ```
 
-Filters and the `ApplicationError` base class: see `nestjs-feature-architecture` → `error-handling.md`.
+Filters and the `BusinessError` base class: see `nestjs-feature-architecture` → `error-handling.md`.

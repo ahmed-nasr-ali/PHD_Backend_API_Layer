@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DynamicsWebApi, RequestError } from 'dynamics-web-api';
-import { DataverseClient } from './dataverse-client';
+import { DataverseClient } from './dataverse.client';
 import { DataverseQuery } from './dataverse-query';
-import { DataverseRetryPolicy } from '../policies/dataverse-retry-policy';
+import { DataverseRetryPolicy } from '../policies/dataverse-retry.policy';
 import { DataverseException } from '../errors/dataverse.exception';
 
 @Injectable()

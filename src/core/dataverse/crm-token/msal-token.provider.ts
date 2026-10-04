@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TokenProvider } from './token-provider';
+import { TokenProvider } from './token.provider';
 import {
   AuthenticationResult,
   ConfidentialClientApplication,

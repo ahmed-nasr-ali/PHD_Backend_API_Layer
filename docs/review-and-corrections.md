@@ -41,7 +41,7 @@ The problems are in the **details**: code that doesn't work as written, ORM-cent
 - **Original idea:** "Nest can use a Zod schema directly via `StandardSchemaValidationPipe`", with `@Body({ schema: createUserSchema })`.
 - **Problem:** in NestJS 12 the `schema` option only attaches metadata. Validation runs only if a `StandardSchemaValidationPipe` is registered globally or on the parameter.
 - **Why it matters:** without the pipe, invalid bodies reach the service silently.
-- **Correct approach:** use the project's existing `@Body(zodBody(schema))` / `@Param('id', zodQuery(schema))`.
+- **Correct approach:** use the project's existing `@Body(zodBody(schema))` / `@Query(zodQuery(schema))` / `@Param('id', zodParam(schema))`.
 - **Reason:** explicit, cannot be silently disabled, and it gives a consistent error body with a deliberate 422 (body) / 400 (query and params) policy.
 
 ### 2. Weak justification for separating the HTTP DTO from the service input ⚠️
@@ -111,7 +111,7 @@ The problems are in the **details**: code that doesn't work as written, ORM-cent
 
 - **Original idea:** `OrderService.placeOrder` throws `new Error('User not found')` and `new Error('User cannot place order')`.
 - **Problem:** both become HTTP 500, and clients can't tell "not found" from "rule violated" from "server bug".
-- **Correct approach:** typed errors extending a framework-free `ApplicationError` with a `kind` and `code`, mapped to 404/409/422/403 by one global `ApplicationErrorFilter`.
+- **Correct approach:** typed errors extending a framework-free `BusinessError` with a `kind` and `code`, mapped to 404/409/422/403 by one global `BusinessErrorFilter`.
 - **Reason:** HTTP status is decided at the edge, from business meaning.
 
 ### 12. No error flow for infrastructure failures 💡
@@ -223,10 +223,10 @@ These are **proposals only**. No source code was changed.
 | --- | --- | --- | --- |
 | 1 | ✅ Abstract-class DI tokens, MSAL isolated in core, error normalisation with `cause`, retry once on 401 with a forced token refresh, `getOrThrow` config | `src/core/dataverse/` | keep; document as the convention |
 | 2 | 💡 `retrieveMultiple` returns `response.value` and drops `oDataNextLink`: lists return at most the first page | `data-access/dynamics-web-api.client.ts` | return `{ items, nextLink }` (or add a paged variant) |
-| 3 | 💡 No handling of 429 throttling (`dynamics-web-api` doesn't retry it either) | `policies/dataverse-retry-policy.ts` | bounded retry honouring `Retry-After`, at least for reads |
+| 3 | 💡 No handling of 429 throttling (`dynamics-web-api` doesn't retry it either) | `policies/dataverse-retry.policy.ts` | bounded retry honouring `Retry-After`, at least for reads |
 | 4 | 💡 `DataverseException` keeps HTTP status but not the Dataverse error code | `errors/dataverse.exception.ts` | add `code` so that repositories can recognise duplicate-key and similar errors |
 | 5 | 💡 No safe way to build `$filter` strings | `data-access/dataverse-query.ts` | add `odataString()` (guide ch. 10) |
-| 6 | 💡 No `expand` support on `retrieve` / `retrieveMultiple` | `data-access/dataverse-client.ts` | add when the first aggregate needs related data |
-| 7 | 💡 No global exception filters: `DataverseException` becomes a 500 | `app.module.ts` | add `ApplicationErrorFilter` + `DataverseExceptionFilter` (guide ch. 12) |
+| 6 | 💡 No `expand` support on `retrieve` / `retrieveMultiple` | `data-access/dataverse.client.ts` | add when the first aggregate needs related data |
+| 7 | ✅ Done: global exception filters (business, Dataverse, HTTP/validation, catch-all) + `ResponseInterceptor`, one response envelope for every response | `src/core/http/` (`HttpModule`, imported by `AppModule`) | see guide ch. 12 |
 | 8 | ⚠️ Jest + ESM: NestJS 12 packages are ESM-only, and the current ts-jest (CommonJS) setup fails on any test importing `@nestjs/common` ("Must use import to load ES Module") | `jest.config.ts` | run Jest with `--experimental-vm-modules` before writing service tests |
 | 9 | ⚠️ Zod-inferred types used in decorated parameters must be imported with `import type` (TS1272 under `isolatedModules` + `emitDecoratorMetadata`) | `tsconfig.json` | convention, documented in the skills |

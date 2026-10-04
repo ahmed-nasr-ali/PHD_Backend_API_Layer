@@ -34,11 +34,12 @@ controllers/ ──► services/ ──► domain/
 
 ```text
 src/
-├── app.module.ts                         ConfigModule, feature modules, APP_FILTER providers
+├── app.module.ts                         ConfigModule, HttpModule, feature modules
 ├── core/
 │   ├── dataverse/                        connection only: MSAL, DataverseClient, retry, DataverseException
-│   ├── validation/                       zodBody (422) / zodQuery (400)
-│   └── errors/                           ApplicationError, ApplicationErrorFilter, DataverseExceptionFilter
+│   ├── validation/                       zodBody (422) / zodQuery / zodParam (400)
+│   ├── errors/                           BusinessError + BusinessErrorKind + ErrorCode (framework-free)
+│   └── http/                             response envelope, 4 global exception filters, ResponseInterceptor, HttpModule
 └── modules/customers/
     ├── customers.module.ts
     ├── controllers/customers.controller.ts
@@ -60,7 +61,7 @@ Features without business rules may omit `domain/`.
 | Thing | File | Exported names |
 | --- | --- | --- |
 | Domain model | `domain/<entity>.ts` | `Customer` |
-| Domain errors | `domain/<entity>.errors.ts` | `EmailAlreadyInUseError extends ApplicationError` |
+| Domain errors | `domain/<entity>.errors.ts` | `EmailAlreadyInUseError extends BusinessError` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (`execute(input)`) |
 | Service input | `services/<verb>-<entity>.input.ts` (next to its service) | `CreateCustomerInput` |
 | Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
@@ -151,7 +152,7 @@ POST /customers
 
 | Question | Place |
 | --- | --- |
-| Is the request well-formed? (types, formats, lengths, ranges) | Zod schema in `dto/` + `zodBody` / `zodQuery` |
+| Is the request well-formed? (types, formats, lengths, ranges) | Zod schema in `dto/` + `zodBody` / `zodQuery` / `zodParam` |
 | Is it intrinsically valid for the business? (adult, total > 0) | `domain/` model (`create()` / methods) |
 | Does it need stored data? (unique, exists, belongs to caller, state allows) | `services/` via repositories |
 | Guarantee under concurrency | Dataverse alternate key / SQL `UNIQUE`, translated by the repository |
@@ -162,20 +163,30 @@ Zod notes: use `z.guid()` for Dataverse ids; mirror Dataverse column max lengths
 
 ## 8. Error flow
 
-| Source | Raised as | Translated by | HTTP |
-| --- | --- | --- | --- |
-| invalid request | `ValidationFailedError` → `HttpException` | validation pipe | 422 body / 400 query & params |
-| business rule | `ApplicationError` (`rule_violation`) | `ApplicationErrorFilter` | 422 |
-| missing aggregate | `ApplicationError` (`not_found`) | `ApplicationErrorFilter` | 404 |
-| uniqueness / state conflict | `ApplicationError` (`conflict`) | `ApplicationErrorFilter` | 409 |
-| authorisation | `ApplicationError` (`forbidden`) | `ApplicationErrorFilter` | 403 |
-| Dataverse 404 on single read | — | repository → `null` | (service decides) |
-| Dataverse duplicate key | `DataverseException` | repository → `ApplicationError` (`conflict`) | 409 |
-| Dataverse 429 / 503 | `DataverseException` | `DataverseExceptionFilter` | 503 |
-| other Dataverse failure | `DataverseException` | `DataverseExceptionFilter` (logs details) | 502 |
-| anything else | `Error` | Nest default | 500 |
+| Source | Raised as | Translated by | HTTP | `code` |
+| --- | --- | --- | --- | --- |
+| invalid request | `ValidationFailedError` → `HttpException` | validation pipe → `HttpExceptionFilter` | 422 body / 400 query & params | `VALIDATION_FAILED` (+ `errors`) |
+| business rule | `BusinessError` (`RuleViolation`) | `BusinessErrorFilter` | 422 | the error's code |
+| missing aggregate | `BusinessError` (`NotFound`) | `BusinessErrorFilter` | 404 | the error's code |
+| uniqueness / state conflict | `BusinessError` (`Conflict`) | `BusinessErrorFilter` | 409 | the error's code |
+| authorisation | `BusinessError` (`Forbidden`) | `BusinessErrorFilter` | 403 | the error's code |
+| Dataverse 404 on single read | — | repository → `null` | (service decides) | |
+| Dataverse duplicate key | `DataverseException` | repository → `BusinessError` (`Conflict`) | 409 | the error's code |
+| Dataverse 429 / 503 | `DataverseException` | `DataverseExceptionFilter` | 503 | `UPSTREAM_UNAVAILABLE` |
+| other Dataverse failure | `DataverseException` | `DataverseExceptionFilter` (logs details) | 502 | `UPSTREAM_UNAVAILABLE` |
+| other Nest `HttpException` (unknown route, …) | `HttpException` | `HttpExceptionFilter` | its status | status name (`NOT_FOUND`) |
+| anything else | `Error` | `UnhandledExceptionFilter` (logs details) | 500 | `INTERNAL_ERROR` |
 
-The HTTP column is decided **only** by the filters. Domain and services throw `kind` + `code`; another caller (CLI, queue consumer) catches the same `ApplicationError` and maps `kind` its own way (e.g. print message, exit 1).
+Every response uses one envelope (`src/core/http/api-response.ts`):
+
+```jsonc
+{ "success": true,  "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
+{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…", "data": null, "errors": [ /* optional */ ] }
+```
+
+Controllers return response DTOs; `ResponseInterceptor` wraps them. The filters live in `core/http/filters/` and are registered by `HttpModule` (catch-all first: Nest tries global filters in reverse order).
+
+The HTTP column is decided **only** by the filters. Domain and services throw `kind` + `code`; another caller (CLI, queue consumer) catches the same `BusinessError` and maps `kind` its own way (e.g. print message, exit 1).
 
 Never: `throw new Error('not found')`; `HttpException` in domain/services; HTTP status codes in domain/service code or comments; `catch (DataverseException)` in services; Dataverse messages in API responses.
 
@@ -191,7 +202,7 @@ Never: `throw new Error('not found')`; `HttpException` in domain/services; HTTP 
 - [ ] Lookups read as `_x_value`, written as `NavProp@odata.bind: "/entityset(guid)"`
 - [ ] Read-only/computed columns (`fullname`, `createdon`) never written
 - [ ] Client-generated GUID sent as the primary key on create
-- [ ] 404 → `null`; expected conflicts → `ApplicationError`; everything else rethrown
+- [ ] 404 → `null`; expected conflicts → `BusinessError`; everything else rethrown
 - [ ] Lists return a cursor (`nextLink`), never offset pages
 - [ ] Independent calls in services run with `Promise.all`
 - [ ] End-user authorisation checked in the service (Dataverse only sees the application user)
@@ -202,7 +213,7 @@ Never: `throw new Error('not found')`; `HttpException` in domain/services; HTTP 
 
 | Unchanged | Replaced / added | Removed |
 | --- | --- | --- |
-| `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, abstract repositories, `ApplicationErrorFilter`, domain & service tests, contract tests | `repositories/postgres/` (repository + table + table-mapper, same file names), DB connection module, schema migrations, DB error filter, one `useClass` line per repository | `repositories/dataverse/` of migrated features; finally `core/dataverse`, `DataverseExceptionFilter`, `DV_*` config |
+| `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, abstract repositories, `BusinessErrorFilter`, domain & service tests, contract tests | `repositories/postgres/` (repository + table + table-mapper, same file names), DB connection module, schema migrations, DB error filter, one `useClass` line per repository | `repositories/dataverse/` of migrated features; finally `core/dataverse`, `DataverseExceptionFilter`, `DV_*` config |
 
 Not covered by the abstraction (plan explicitly): data migration and/or sync, logic living in Dataverse (plugins, flows, business rules, rollups), Dataverse security model → app authorisation, other CRM consumers, transaction and paging semantics, case-sensitivity and date handling, GUID casing (SQL Server returns upper case).
 

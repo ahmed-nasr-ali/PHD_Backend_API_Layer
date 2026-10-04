@@ -200,7 +200,7 @@ A migration adds `repositories/postgres/` with the **same file names** (`postgre
 - Single-valued lookup data needed → `$expand` it (once the client supports `expand`) or map just the id.
 - Small child collection that is part of the aggregate → collection `$expand`; large or paged children → separate query.
 - Multiple records must change atomically → one repository method implemented with a `$batch` changeset.
-- An expected Dataverse failure with business meaning → translate it to an `ApplicationError` in the repository; everything else → rethrow.
+- An expected Dataverse failure with business meaning → translate it to a `BusinessError` in the repository; everything else → rethrow.
 
 ## Practical checklist
 
@@ -209,6 +209,6 @@ A migration adds `repositories/postgres/` with the **same file names** (`postgre
 - [ ] Table-mapper: `toDomain` uses `Entity.restore`; choices/statecode/lookups mapped; read-only columns never written
 - [ ] Client-generated GUID sent as the primary key on create
 - [ ] Filters escaped/validated
-- [ ] 404 → `null`; known conflicts → `ApplicationError`; others rethrown
+- [ ] 404 → `null`; known conflicts → `BusinessError`; others rethrown
 - [ ] Lists honour paging (cursor), not offsets
 - [ ] Table-mapper unit-tested with real-looking JSON, including nulls and unknown choice values

@@ -1,3 +1,3 @@
 export interface Validator<T = unknown> {
-  validate(value: unknown): T;
+  validate(value: unknown): Promise<T>;
 }

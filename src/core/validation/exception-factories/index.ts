@@ -1,2 +1,1 @@
-export * from './bad-request.exception-factory';
-export * from './unprocessable-entity.exception-factory';
+export * from './http-validation.exception-factory';

@@ -99,10 +99,10 @@ export class Customer {
 
 ```ts
 // modules/customers/domain/customer.errors.ts
-import { ApplicationError } from '../../../core/errors/application-error';
+import { BusinessError, BusinessErrorKind } from '../../../core/errors/business-error';
 
-export class CustomerMustBeAdultError extends ApplicationError {
-  readonly kind = 'rule_violation';
+export class CustomerMustBeAdultError extends BusinessError {
+  readonly kind = BusinessErrorKind.RuleViolation;
 
   constructor() {
     super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');

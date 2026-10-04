@@ -22,7 +22,7 @@ flowchart TB
     S12 --> DV2[("Dataverse")]
     DV2 --> S13["⑬ Service returns Customer"]
     S13 --> S14["⑭ CustomerResponseMapper<br/>→ CustomerResponseDto"]
-    S14 --> S15(["⑮ 201 Created<br/>JSON"])
+    S14 --> S15(["⑮ 201 Created<br/>ResponseInterceptor wraps the DTO"])
 
     S2 -.->|invalid| X2(["422"])
     S5 -.->|under 18| X5(["422"])
@@ -110,22 +110,34 @@ flowchart TB
     S1["Dataverse error"] --> S2["DataverseException<br/>status + cause"]
     S2 --> S3{"Repository"}
     S3 -->|404| N["return null"]
-    S3 -->|duplicate key| AE["ApplicationError"]
+    S3 -->|duplicate key| AE["BusinessError"]
     S3 -->|anything else| F2["DataverseExceptionFilter"]
     U["Service / Domain<br/>rule broken, not found"] --> AE
-    AE --> F1["ApplicationErrorFilter"]
-    F1 --> H1(["404 / 409 / 422 / 403"])
-    F2 --> H2(["502 / 503"])
+    AE --> F1["BusinessErrorFilter"]
+    F1 --> H1(["404 / 409 / 422 / 403<br/>code = error.code"])
+    F2 --> H2(["502 / 503<br/>UPSTREAM_UNAVAILABLE"])
+    V["zodBody / zodQuery / zodParam<br/>invalid request"] --> F3["HttpExceptionFilter"]
+    F3 --> H3(["422 / 400<br/>VALIDATION_FAILED + errors"])
+    B["Unexpected error (bug)"] --> F4["UnhandledExceptionFilter"]
+    F4 --> H4(["500<br/>INTERNAL_ERROR"])
 
     classDef pres fill:#dbeafe,stroke:#2563eb,color:#000
     classDef app fill:#dcfce7,stroke:#16a34a,color:#000
     classDef infra fill:#fee2e2,stroke:#dc2626,color:#000
     classDef ext fill:#f3f4f6,stroke:#6b7280,color:#000
-    class F1,F2,H1,H2 pres
-    class U,AE,N app
+    class F1,F2,F3,F4,H1,H2,H3,H4,V pres
+    class U,AE,N,B app
     class S2,S3 infra
     class S1 ext
 ```
+
+Every red/blue end box above is the same error envelope (`src/core/http/`):
+
+```json
+{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…", "data": null }
+```
+
+A successful request is wrapped by `ResponseInterceptor` as `{ "success": true, "statusCode": 201, "message": "OK", "data": <response DTO> }`.
 
 ## 5. The same flow as code
 
@@ -170,7 +182,7 @@ async execute(input: CreateCustomerInput): Promise<Customer> {
 
   const existing = await this.customers.findByEmail(customer.email);           // ⑥ ⑦ ⑧ ⑨
   if (existing) {
-    throw new EmailAlreadyInUseError(customer.email);                          // ⑨ kind: conflict
+    throw new EmailAlreadyInUseError(customer.email);                          // ⑨ kind: Conflict
   }
 
   await this.customers.create(customer);                                       // ⑩ ⑪ ⑫
@@ -181,7 +193,7 @@ async execute(input: CreateCustomerInput): Promise<Customer> {
 static create(props: NewCustomerProps, today: Date): Customer {
   const customer = new Customer({ ...props, email: props.email.trim().toLowerCase(), status: 'active' });
   if (!customer.isAdultOn(today)) {
-    throw new CustomerMustBeAdultError();                                      // kind: rule_violation
+    throw new CustomerMustBeAdultError();                                      // kind: RuleViolation
   }
   return customer;
 }
@@ -198,15 +210,15 @@ isAdultOn(date: Date): boolean {
 
 // ── domain/customer.errors.ts ───────────────────────────────────── ⑤ ⑨
 // No HTTP here: only a kind + code. Each caller decides what to do with it.
-export class CustomerMustBeAdultError extends ApplicationError {
-  readonly kind = 'rule_violation';
+export class CustomerMustBeAdultError extends BusinessError {
+  readonly kind = BusinessErrorKind.RuleViolation;
   constructor() {
     super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
   }
 }
 
-export class EmailAlreadyInUseError extends ApplicationError {
-  readonly kind = 'conflict';
+export class EmailAlreadyInUseError extends BusinessError {
+  readonly kind = BusinessErrorKind.Conflict;
   constructor(email: string) {
     super(`Email ${email} is already in use`, 'EMAIL_ALREADY_IN_USE');
   }
@@ -243,13 +255,13 @@ static toResponse(customer: Customer): CustomerResponseDto {
 }
 ```
 
-**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`ApplicationErrorFilter` in `core/errors/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
+**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`BusinessErrorFilter` in `core/http/filters/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
 
-| `kind` | HTTP (`ApplicationErrorFilter`) | CLI (example) |
+| `kind` | HTTP (`BusinessErrorFilter`) | CLI (example) |
 | --- | --- | --- |
-| `rule_violation` | 422 | print message, exit 1 |
-| `conflict` | 409 | print message, exit 1 |
-| `not_found` | 404 | print message, exit 1 |
-| `forbidden` | 403 | print message, exit 1 |
+| `RuleViolation` | 422 | print message, exit 1 |
+| `Conflict` | 409 | print message, exit 1 |
+| `NotFound` | 404 | print message, exit 1 |
+| `Forbidden` | 403 | print message, exit 1 |
 
 `201` in the controller is fine: the controller *is* the HTTP layer.

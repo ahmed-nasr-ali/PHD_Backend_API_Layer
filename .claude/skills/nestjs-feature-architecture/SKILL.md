@@ -1,6 +1,6 @@
 ---
 name: nestjs-feature-architecture
-description: Folder structure and layer rules for NestJS feature modules in this Dataverse-backed project. Covers controllers/ dto/ services/ domain/ repositories/ mappers/ folders, the dependency rules, naming, one service class per operation, domain models with create/restore, ApplicationError-based error flow, and module/DI wiring with abstract-class repository tokens. Use when creating a new feature module, adding a service, controller or domain model, wiring providers, deciding where a piece of code belongs, or reviewing a change for layer violations.
+description: Folder structure and layer rules for NestJS feature modules in this Dataverse-backed project. Covers controllers/ dto/ services/ domain/ repositories/ mappers/ folders, the dependency rules, naming, one service class per operation, domain models with create/restore, BusinessError-based error flow, and module/DI wiring with abstract-class repository tokens. Use when creating a new feature module, adding a service, controller or domain model, wiring providers, deciding where a piece of code belongs, or reviewing a change for layer violations.
 ---
 
 # NestJS Feature Architecture
@@ -20,8 +20,11 @@ Related skills: `request-validation-and-dtos` (dto/, controllers/, mappers/), `d
 
 ## Prerequisites
 
-- Existing building blocks: `src/core/dataverse` (exports `DataverseModule`, `DataverseClient`, `DataverseException`) and `src/core/validation` (exports `zodBody`, `zodQuery`).
-- Proposed building block, created with the first feature if missing: `src/core/errors` (`ApplicationError`, `ApplicationErrorFilter`, `DataverseExceptionFilter`). See [error-handling.md](error-handling.md).
+- Existing building blocks:
+  - `src/core/dataverse` (exports `DataverseModule`, `DataverseClient`, `DataverseException`)
+  - `src/core/validation` (exports `zodBody`, `zodQuery`, `zodParam`)
+  - `src/core/errors` (exports `BusinessError`, `BusinessErrorKind`, `ErrorCode`; framework-free)
+  - `src/core/http` (exports `HttpModule`, the response envelope; global exception filters + `ResponseInterceptor`, already registered in `AppModule`). See [error-handling.md](error-handling.md).
 
 ## Core concept
 
@@ -59,7 +62,7 @@ Domain = business rules · Service = script for one operation · Repository (abs
 1. **One service class per operation:** `<Verb><Entity>Service` in `services/<verb>-<entity>.service.ts`, with a single `execute(input)`. The Input type lives next to it in `services/<verb>-<entity>.input.ts`; a Result type (only when the service doesn't return a domain object) stays in the service file. No `CustomersService` with many methods.
 2. **Domain models:** private constructor taking a props object, `static create()` (new objects, enforces rules), `static restore()` (from storage, trusted), `readonly` fields, `id: string` generated with `randomUUID()` in the service. See [domain-models.md](domain-models.md).
 3. **Repositories are abstract classes** in `repositories/<entity>.repository.ts`, used directly as DI tokens. Implementations live in `repositories/<tech>/`.
-4. **Errors:** domain and services throw `ApplicationError` subclasses from `domain/<entity>.errors.ts`; never `Error`, never `HttpException`. See [error-handling.md](error-handling.md).
+4. **Errors:** domain and services throw `BusinessError` subclasses from `domain/<entity>.errors.ts`; never `Error`, never `HttpException`. See [error-handling.md](error-handling.md).
 5. **Wiring:** [module-wiring.md](module-wiring.md).
 
 ## Example: a service
@@ -119,7 +122,7 @@ return { customer, recentOrders };
 - `@Injectable()` on services is an accepted pragmatic coupling. The domain stays NestJS-free.
 - Cross-feature use: the depending module imports the other module, which **exports its abstract repository** (`exports: [CustomerRepository]`). Put a cross-feature service in the module that already depends on the other. Never create circular imports.
 - A service never calls another service. Shared logic goes into the domain model or a repository method.
-- Register global filters with `{ provide: APP_FILTER, useClass: … }` in `AppModule`.
+- Global filters and the response interceptor are registered once in `src/core/http/http.module.ts` (imported by `AppModule`). Features never register filters and never build the response envelope; controllers return response DTOs.
 
 ## CRM considerations
 
@@ -159,6 +162,6 @@ See [common-mistakes.md](common-mistakes.md). The top five:
 - [ ] One service per operation, `execute(input)`; Input type in `<verb>-<entity>.input.ts` next to it
 - [ ] Service depends only on abstract repositories and `domain/`
 - [ ] Independent remote reads use `Promise.all`
-- [ ] Errors extend `ApplicationError` with a `kind` and `code`
+- [ ] Errors extend `BusinessError` with a `kind` and `code`
 - [ ] Repository bound with `{ provide: CustomerRepository, useClass: DataverseCustomerRepository }`; module exports the abstract class, not the implementation
 - [ ] Controller returns a response DTO via a mapper

@@ -3,8 +3,8 @@
 | # | Mistake | Why it hurts | Fix |
 | --- | --- | --- | --- |
 | 1 | Service or controller injects `DataverseClient` | business logic is coupled to the CRM; migrating means rewriting services | inject the abstract repository; only `repositories/dataverse/` uses `DataverseClient` |
-| 2 | `throw new Error('Customer not found')` | becomes a 500 | `throw new CustomerNotFoundError(id)` (an `ApplicationError`) |
-| 3 | `throw new NotFoundException()` in a service | ties business code to HTTP | `ApplicationError`; the filter maps it to 404 |
+| 2 | `throw new Error('Customer not found')` | becomes a 500 | `throw new CustomerNotFoundError(id)` (a `BusinessError`) |
+| 3 | `throw new NotFoundException()` in a service | ties business code to HTTP | `BusinessError`; the filter maps it to 404 |
 | 4 | `return customer` (domain object) from a controller | leaks internals; getters aren't serialised; the API changes silently | `return CustomerResponseMapper.toResponse(customer)` |
 | 5 | `@Inject('CustomerRepository')` string tokens | typo-prone, unchecked | abstract class token |
 | 6 | `repository.create(input)` with a service Input | the repository depends on the service's input shape | `repository.create(customer)` with a domain object |

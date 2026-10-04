@@ -4,11 +4,12 @@
 
 ```text
 src/
-├── app.module.ts                         ConfigModule, feature modules, APP_FILTER providers
+├── app.module.ts                         ConfigModule, HttpModule, feature modules
 ├── core/                                 technical building blocks only (no business concepts)
 │   ├── dataverse/                        connection: MSAL, DataverseClient, retry, DataverseException
-│   ├── validation/                       zodBody (422) / zodQuery (400)
-│   └── errors/                           ApplicationError + global exception filters
+│   ├── validation/                       zodBody (422) / zodQuery / zodParam (400)
+│   ├── errors/                           BusinessError + BusinessErrorKind + ErrorCode (framework-free)
+│   └── http/                             response envelope, global exception filters, ResponseInterceptor
 └── modules/
     └── customers/
         ├── customers.module.ts
@@ -28,7 +29,7 @@ src/
         │   └── update-customer.input.ts
         ├── domain/
         │   ├── customer.ts                       model + rules
-        │   └── customer.errors.ts                ApplicationError subclasses
+        │   └── customer.errors.ts                BusinessError subclasses
         └── repositories/
             ├── customer.repository.ts            abstract class (port + DI token)
             └── dataverse/
