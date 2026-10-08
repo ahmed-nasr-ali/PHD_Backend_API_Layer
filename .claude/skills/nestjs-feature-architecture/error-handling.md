@@ -61,16 +61,26 @@ export abstract class BusinessError extends Error {
 }
 ```
 
-A feature declares its errors in `domain/<entity>.errors.ts`:
+A feature declares its error codes in `domain/enums/<entity>-error-code.enum.ts` and its errors in `domain/errors/<entity>.errors.ts`:
 
 ```ts
-import { BusinessError, BusinessErrorKind } from '../../../core/errors';
+// domain/enums/customer-error-code.enum.ts
+/** Codes the customers feature returns in the error envelope. Part of the API contract: never rename a value. */
+export enum CustomerErrorCode {
+  NotFound = 'CUSTOMER_NOT_FOUND',
+}
+```
+
+```ts
+// domain/errors/customer.errors.ts
+import { BusinessError, BusinessErrorKind } from '../../../../core/errors';
+import { CustomerErrorCode } from '../enums/customer-error-code.enum';
 
 export class CustomerNotFoundError extends BusinessError {
   readonly kind = BusinessErrorKind.NotFound;
 
   constructor(id: string) {
-    super(`Customer ${id} was not found`, 'CUSTOMER_NOT_FOUND');
+    super(`Customer ${id} was not found`, CustomerErrorCode.NotFound);
   }
 }
 ```
@@ -142,3 +152,4 @@ try {
 - Never put Dataverse or unexpected error text in API responses; log it.
 - Keep `cause` when wrapping errors.
 - Controllers never build the envelope themselves; they return the response DTO.
+- Never hand-type a business error code: use the feature's error-code enum (`CustomerErrorCode.NotFound`), the same way system codes use `ErrorCode`.

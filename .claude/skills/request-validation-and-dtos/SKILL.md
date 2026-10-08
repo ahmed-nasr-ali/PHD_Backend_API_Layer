@@ -90,18 +90,20 @@ export const customerIdSchema = z.guid();
 
 ```ts
 // dto/customer-response.dto.ts
-/** The JSON shape returned to API clients. */
+import { CustomerStatus } from '../domain/enums/customer-status.enum';
+
+/** The JSON shape returned to API clients. Option sets go out as their CRM numbers. */
 export interface CustomerResponseDto {
   id: string;
   fullName: string;
   email: string;
-  status: 'active' | 'inactive';
+  status: CustomerStatus | null;
 }
 ```
 
 ```ts
 // mappers/customer-response.mapper.ts
-import { Customer } from '../domain/customer';
+import { Customer } from '../domain/models/customer.model';
 import { CustomerResponseDto } from '../dto/customer-response.dto';
 
 /** Translates the Customer domain model into the API response. */

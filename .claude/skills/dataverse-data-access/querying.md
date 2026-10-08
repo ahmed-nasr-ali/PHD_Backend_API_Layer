@@ -2,14 +2,14 @@
 
 ## `$select`
 
-Always pass explicit columns (`<ENTITY>_TABLE_COLUMNS` from `<entity>.table.ts`). Without `$select`, Dataverse returns every column: slower, and coupled to columns you never meant to read.
+Always pass explicit columns (`<ENTITY>_COLUMNS` from `queries/<entity>.query.ts`). Without `$select`, Dataverse returns every column: slower, and coupled to columns you never meant to read.
 
 ## `$filter` and injection
 
 `DataverseQuery.filter` is a raw OData string. Never interpolate unchecked input.
 
 ```ts
-// strings: escape with odataString (single quotes doubled)
+// strings: escape with odataString from core/dataverse (single quotes doubled)
 filter: `emailaddress1 eq ${odataString(email)}`
 
 // GUIDs are unquoted in OData: validate first
@@ -19,8 +19,8 @@ if (!GUID.test(customerId)) {
 }
 filter: `_new_customerid_value eq ${customerId}`
 
-// numbers / choices: only from typed values (constants or number-typed variables)
-filter: `new_status eq ${STATUS_TO_CHOICE.placed}`
+// numbers / choices: only from typed values (enum members or number-typed variables)
+filter: `new_status eq ${OrderStatus.Placed}`
 ```
 
 Useful operators: `eq`, `ne`, `gt`, `lt`, `and`, `or`, `contains(name,'x')`, `startswith(...)`, `Microsoft.Dynamics.CRM.In(PropertyName='x',PropertyValues=[...])`.
@@ -29,7 +29,7 @@ Useful operators: `eq`, `ne`, `gt`, `lt`, `and`, `or`, `contains(name,'x')`, `st
 
 ```ts
 await this.dataverse.retrieveMultiple<OrderTableRow>(ORDER_TABLE, {
-  select: ORDER_TABLE_COLUMNS,
+  select: ORDER_COLUMNS,
   filter: `_new_customerid_value eq ${customerId}`,
   orderBy: ['createdon desc'],
   top: limit,
@@ -60,7 +60,28 @@ export interface Page<T> {
 | Small child collection on a single retrieve | `$expand=<collection nav prop>($select=…;$top=N)` |
 | Large or paged children | separate query filtered on the lookup |
 
-The current `DataverseClient` has no `expand` parameter (the library supports it). Add it to `DataverseClient` + `DynamicsWebApiClient` when first needed. **The abstract repository never changes for this.**
+`DataverseQuery.expand` takes nested `DataverseExpand` objects (`{ property, select?, expand? }`); keep them in `queries/<entity>.query.ts` next to the columns. Navigation property names are case-sensitive: verify the query in the browser against the test environment first.
+
+```ts
+// queries/invitation.query.ts (excerpt): invitation → its units → unit → compound
+export const INVITATION_EXPAND: DataverseExpand[] = [
+  {
+    property: 'com_com_invitationrequest_com_invitationunit_InvitationRequest',
+    select: ['com_invitationunitid'],
+    expand: [
+      {
+        property: 'com_Unit',
+        select: ['com_unitid'],
+        expand: [{ property: 'com_Compound', select: ['com_compoundid', 'com_tenancytermsandconditionsfortenants'] }],
+      },
+    ],
+  },
+];
+```
+
+⚠️ With a **nested expand on a one-to-many relationship**, Dataverse accepts only `$select`, `$filter` and `$orderby` at the top level: adding `top` fails with `0x80060888`. Filter precisely instead (e.g. by code).
+
+Single-record `retrieve` has no `expand` yet; add it to `DataverseClient` + `DynamicsWebApiClient` when first needed. **The abstract repository never changes for this.**
 
 ## Atomic multi-record writes
 

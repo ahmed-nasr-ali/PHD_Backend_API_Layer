@@ -2,21 +2,33 @@
 
 ## Shape
 
+One type per file: enums in `domain/enums/`, the model and its props in `domain/models/`, errors in `domain/errors/`.
+
 ```ts
-// modules/customers/domain/customer.ts
-import { CustomerMustBeAdultError } from './customer.errors';
+// modules/customers/domain/enums/customer-status.enum.ts
+/** Customer status: the CRM `statecode` of `contacts` (values are the CRM values). */
+export enum CustomerStatus {
+  Active = 0,
+  Inactive = 1,
+}
+```
 
-export type CustomerStatus = 'active' | 'inactive';
+```ts
+// modules/customers/domain/models/customer.props.ts
+import { CustomerStatus } from '../enums/customer-status.enum';
 
+/** Everything a `Customer` is built from (a stored customer). */
 export interface CustomerProps {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
   birthDate: Date | null;
-  status: CustomerStatus;
+  /** `null` when the CRM holds a value the enum doesn't know. */
+  status: CustomerStatus | null;
 }
 
+/** What a brand-new customer needs. */
 export interface NewCustomerProps {
   id: string;
   firstName: string;
@@ -24,6 +36,13 @@ export interface NewCustomerProps {
   email: string;
   birthDate: Date;
 }
+```
+
+```ts
+// modules/customers/domain/models/customer.model.ts
+import { CustomerStatus } from '../enums/customer-status.enum';
+import { CustomerMustBeAdultError } from '../errors/customer.errors';
+import { CustomerProps, NewCustomerProps } from './customer.props';
 
 export class Customer {
   readonly id: string;
@@ -31,7 +50,7 @@ export class Customer {
   readonly lastName: string;
   readonly email: string;
   readonly birthDate: Date | null;
-  readonly status: CustomerStatus;
+  readonly status: CustomerStatus | null;
 
   private constructor(props: CustomerProps) {
     this.id = props.id;
@@ -47,7 +66,7 @@ export class Customer {
     const customer = new Customer({
       ...props,
       email: props.email.trim().toLowerCase(),
-      status: 'active',
+      status: CustomerStatus.Active,
     });
 
     if (!customer.isAdultOn(today)) {
@@ -76,7 +95,7 @@ export class Customer {
   }
 
   canPlaceOrder(today: Date): boolean {
-    return this.status === 'active' && this.isAdultOn(today);
+    return this.status === CustomerStatus.Active && this.isAdultOn(today);
   }
 }
 ```
@@ -94,24 +113,42 @@ export class Customer {
 | Time passed in (`today: Date`) | deterministic, testable |
 | Normalise values that affect equality (lowercase email) | makes uniqueness behave the same on case-insensitive Dataverse/SQL Server and case-sensitive PostgreSQL |
 | No NestJS, Zod, Dataverse or SQL imports | the domain is the stable core |
+| One type per file: `enums/`, `models/` (`<entity>.model.ts` + `<entity>.props.ts`), `errors/`, `rules/` | each file has one reason to change; imports show exactly what is used |
+| Option sets are enums in `domain/enums/` with the CRM values; code compares enum members (`CustomerStatus.Active`), never bare numbers | readable rules; the values match Dataverse without a translation table |
+| Unknown or empty option-set values become `null` (the table-mapper uses `optionSetValue`) | a value added in the CRM later makes the rule fail safely instead of passing as a wrong member |
 
 ## Domain errors
 
+Error codes are enum members, never hand-typed strings.
+
 ```ts
-// modules/customers/domain/customer.errors.ts
-import { BusinessError, BusinessErrorKind } from '../../../core/errors/business-error';
+// modules/customers/domain/enums/customer-error-code.enum.ts
+/** Codes the customers feature returns in the error envelope. Part of the API contract: never rename a value. */
+export enum CustomerErrorCode {
+  MustBeAdult = 'CUSTOMER_MUST_BE_ADULT',
+}
+```
+
+```ts
+// modules/customers/domain/errors/customer.errors.ts
+import { BusinessError, BusinessErrorKind } from '../../../../core/errors';
+import { CustomerErrorCode } from '../enums/customer-error-code.enum';
 
 export class CustomerMustBeAdultError extends BusinessError {
   readonly kind = BusinessErrorKind.RuleViolation;
 
   constructor() {
-    super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
+    super('Customer must be at least 18 years old', CustomerErrorCode.MustBeAdult);
   }
 }
 ```
 
+## Pure rules across several models
+
+Logic that needs several domain objects but no I/O goes in `domain/rules/<rule>.ts` as a plain function (e.g. `pickInvitationForCode(invitations)` picks the newest Confirmed invitation or throws why the code can't be used). Services call it; it never calls repositories.
+
 ## Persistence model ≠ domain model
 
-`CustomerTableRow` in `repositories/dataverse/customer.table.ts` (Dataverse JSON: `emailaddress1`, `statecode: 0`) and, later, `CustomerTableRow` in `repositories/postgres/customer.table.ts` are storage shapes. The domain never uses them, and they never replace the domain model.
+`CustomerTableRow` in `repositories/dataverse/tables/customer.table.ts` (Dataverse JSON: `emailaddress1`, `statecode`, mapped to `CustomerStatus` through `optionSetValue`) and, later, `CustomerTableRow` in `repositories/postgres/tables/customer.table.ts` are storage shapes. The domain never uses them, and they never replace the domain model.
 
 > ORM-specific concept: if an ORM is adopted later, its `@Entity()` classes are persistence models in `repositories/postgres/`, not domain models.

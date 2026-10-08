@@ -33,7 +33,7 @@ Reliable translation needs the Dataverse **error code**, not just the HTTP statu
 ```ts
 async findById(id: string): Promise<Customer | null> {
   try {
-    const row = await this.dataverse.retrieve<CustomerTableRow>(CUSTOMER_TABLE, id, CUSTOMER_TABLE_COLUMNS);
+    const row = await this.dataverse.retrieve<CustomerTableRow>(CUSTOMER_TABLE, id, CUSTOMER_COLUMNS);
     return CustomerTableMapper.toDomain(row);
   } catch (error) {
     if (error instanceof DataverseException && error.status === 404) {

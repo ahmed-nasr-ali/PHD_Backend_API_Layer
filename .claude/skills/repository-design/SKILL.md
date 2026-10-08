@@ -27,8 +27,9 @@ modules/customers/repositories/
 ├── customer.repository.ts              abstract class (the port, DI token)
 ├── dataverse/                          implementation for Dataverse (today)
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table.ts
-│   └── customer.table-mapper.ts
+│   ├── customer.table-mapper.ts
+│   ├── tables/customer.table.ts
+│   └── queries/customer.query.ts
 └── postgres/                           implementation for PostgreSQL (later, same file names)
 ```
 
@@ -51,7 +52,7 @@ The abstract repository is a job description; implementations are candidates who
 
 ```ts
 // repositories/customer.repository.ts
-import { Customer } from '../domain/customer';
+import { Customer } from '../domain/models/customer.model';
 
 /**
  * What the services need from customer storage (the port).

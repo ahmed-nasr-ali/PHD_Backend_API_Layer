@@ -23,7 +23,7 @@ controllers/ ──► services/ ──► domain/
 | `dto/` | presentation | Zod request schemas + inferred `…Dto` types; response DTO types | `services/`, `repositories/` |
 | `mappers/` | presentation | Domain → Response DTO | `repositories/`, `core/dataverse` |
 | `services/` | application | one class per operation (`*.service.ts`) + its Input type (`*.input.ts`) | `controllers/`, `dto/`, `mappers/`, `repositories/dataverse/`, `core/dataverse` |
-| `domain/` | domain | models, rules, domain errors | `@nestjs/*`, `zod`, `core/dataverse`, other folders |
+| `domain/` | domain | `enums/`, `models/`, `errors/`, `rules/` (one type per file) | `@nestjs/*`, `zod`, `core/dataverse`, other folders |
 | `repositories/<entity>.repository.ts` | port | abstract class in domain terms | anything except `domain/` |
 | `repositories/dataverse/` | infrastructure | Dataverse repository, table, table-mapper | `controllers/`, `dto/`, `mappers/`, `services/` |
 | `core/` | technical | Dataverse connection, validation pipes, error base + filters | `modules/*` |
@@ -46,10 +46,10 @@ src/
     ├── dto/                              create-customer.dto.ts, customer-id.dto.ts, customer-response.dto.ts
     ├── mappers/                          customer-response.mapper.ts
     ├── services/                         create-customer.service.ts + create-customer.input.ts, get-customer.service.ts, ...
-    ├── domain/                           customer.ts, customer.errors.ts
+    ├── domain/                           enums/ (one enum per file) · models/ (customer.model.ts, customer.props.ts) · errors/ (customer.errors.ts) · rules/
     └── repositories/
         ├── customer.repository.ts        abstract class
-        └── dataverse/                    dataverse-customer.repository.ts, customer.table.ts, customer.table-mapper.ts
+        └── dataverse/                    dataverse-customer.repository.ts, customer.table-mapper.ts, tables/customer.table.ts, queries/customer.query.ts
 ```
 
 Features without business rules may omit `domain/`.
@@ -60,8 +60,10 @@ Features without business rules may omit `domain/`.
 
 | Thing | File | Exported names |
 | --- | --- | --- |
-| Domain model | `domain/<entity>.ts` | `Customer` |
-| Domain errors | `domain/<entity>.errors.ts` | `EmailAlreadyInUseError extends BusinessError` |
+| Enum (option set / error codes) | `domain/enums/<name>.enum.ts` | `CustomerStatus` (CRM values), `CustomerErrorCode` |
+| Domain model | `domain/models/<entity>.model.ts` (+ `<entity>.props.ts`) | `Customer`, `CustomerProps` |
+| Domain errors | `domain/errors/<entity>.errors.ts` | `EmailAlreadyInUseError extends BusinessError` (code from the enum) |
+| Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (`execute(input)`) |
 | Service input | `services/<verb>-<entity>.input.ts` (next to its service) | `CreateCustomerInput` |
 | Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
@@ -70,7 +72,8 @@ Features without business rules may omit `domain/`.
 | Response mapper | `mappers/<entity>-response.mapper.ts` | `CustomerResponseMapper` |
 | Repository (abstract) | `repositories/<entity>.repository.ts` | `CustomerRepository` |
 | Repository (Dataverse) | `repositories/dataverse/dataverse-<entity>.repository.ts` | `DataverseCustomerRepository` |
-| Table | `repositories/dataverse/<entity>.table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow`, `CUSTOMER_TABLE_COLUMNS` (+ `OrderTableWriteRow` when writes differ) |
+| Table (row shape) | `repositories/dataverse/tables/<entity>[-<table>].table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow` (+ `OrderTableWriteRow` when writes differ; expanded tables prefixed: `InvitationCompoundTableRow`) |
+| Query | `repositories/dataverse/queries/<entity>.query.ts` | `CUSTOMER_COLUMNS` ($select), `CUSTOMER_EXPAND` ($expand) |
 | Table mapper | `repositories/dataverse/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
 | PostgreSQL later | `repositories/postgres/…` | same file names; `PostgresCustomerRepository` |
 
@@ -188,17 +191,18 @@ Controllers return response DTOs; `ResponseInterceptor` wraps them. The filters 
 
 The HTTP column is decided **only** by the filters. Domain and services throw `kind` + `code`; another caller (CLI, queue consumer) catches the same `BusinessError` and maps `kind` its own way (e.g. print message, exit 1).
 
-Never: `throw new Error('not found')`; `HttpException` in domain/services; HTTP status codes in domain/service code or comments; `catch (DataverseException)` in services; Dataverse messages in API responses.
+Never: `throw new Error('not found')`; a hand-typed error code string (use the feature's error-code enum); `HttpException` in domain/services; HTTP status codes in domain/service code or comments; `catch (DataverseException)` in services; Dataverse messages in API responses.
 
 ---
 
 ## 9. Dataverse repository checklist
 
 - [ ] Uses the shared `DataverseClient` (never `DynamicsWebApi`, `axios` or MSAL directly)
-- [ ] Table name, row type and column list live in `<entity>.table.ts`; `$select` always uses the column list
+- [ ] Table name and row type live in `tables/<entity>.table.ts`; `$select` columns (+ `$expand`) in `queries/<entity>.query.ts`, used for every read
+- [ ] No `top` together with a nested one-to-many `$expand` (Dataverse rejects it)
 - [ ] String filter values escaped with `odataString()`; GUIDs validated before interpolation
 - [ ] `null` handling decided per column (nullable in domain / documented default / fail loudly)
-- [ ] Choice integers and `statecode` mapped to domain values in the table-mapper; unknown values fail loudly
+- [ ] Option sets (choices, `statecode`, `statuscode`) are domain enums with the CRM values, mapped with `optionSetValue` (unknown or empty → `null`); never a bare number in code
 - [ ] Lookups read as `_x_value`, written as `NavProp@odata.bind: "/entityset(guid)"`
 - [ ] Read-only/computed columns (`fullname`, `createdon`) never written
 - [ ] Client-generated GUID sent as the primary key on create
@@ -213,7 +217,7 @@ Never: `throw new Error('not found')`; `HttpException` in domain/services; HTTP 
 
 | Unchanged | Replaced / added | Removed |
 | --- | --- | --- |
-| `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, abstract repositories, `BusinessErrorFilter`, domain & service tests, contract tests | `repositories/postgres/` (repository + table + table-mapper, same file names), DB connection module, schema migrations, DB error filter, one `useClass` line per repository | `repositories/dataverse/` of migrated features; finally `core/dataverse`, `DataverseExceptionFilter`, `DV_*` config |
+| `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, abstract repositories, `BusinessErrorFilter`, domain & service tests, contract tests | `repositories/postgres/` (repository + `tables/` + `queries/` + table-mapper, same file names), DB connection module, schema migrations, DB error filter, one `useClass` line per repository | `repositories/dataverse/` of migrated features; finally `core/dataverse`, `DataverseExceptionFilter`, `DV_*` config |
 
 Not covered by the abstraction (plan explicitly): data migration and/or sync, logic living in Dataverse (plugins, flows, business rules, rollups), Dataverse security model → app authorisation, other CRM consumers, transaction and paging semantics, case-sensitivity and date handling, GUID casing (SQL Server returns upper case).
 
@@ -223,7 +227,7 @@ Not covered by the abstraction (plan explicitly): data migration and/or sync, lo
 
 | Change | Edit only |
 | --- | --- |
-| Dataverse column renamed | `<entity>.table.ts` + `<entity>.table-mapper.ts` |
+| Dataverse column renamed | `tables/<entity>.table.ts` + `queries/<entity>.query.ts` + `<entity>.table-mapper.ts` |
 | Dataverse auth / URL / retry | `core/dataverse` |
 | Frontend wants a new response shape | `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
 | Request shape changes | `dto/<verb>-<entity>.dto.ts` + controller input building |

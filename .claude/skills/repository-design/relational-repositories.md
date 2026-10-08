@@ -9,12 +9,14 @@ modules/customers/repositories/
 ├── customer.repository.ts                    abstract (unchanged)
 ├── dataverse/
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table.ts                     CUSTOMER_TABLE = 'contacts'
-│   └── customer.table-mapper.ts
+│   ├── customer.table-mapper.ts
+│   ├── tables/customer.table.ts              CUSTOMER_TABLE = 'contacts'
+│   └── queries/customer.query.ts             CUSTOMER_COLUMNS ($select)
 └── postgres/
     ├── postgres-customer.repository.ts
-    ├── customer.table.ts                     CUSTOMER_TABLE = 'customers'
-    └── customer.table-mapper.ts
+    ├── customer.table-mapper.ts
+    ├── tables/customer.table.ts              CUSTOMER_TABLE = 'customers'
+    └── queries/customer.query.ts             CUSTOMER_COLUMNS (SQL select list)
 ```
 
 A `core/postgres` module (pool, config, health check) plays the role `core/dataverse` plays today.
@@ -28,11 +30,13 @@ CREATE TABLE customers (
   last_name   text NOT NULL,
   email       text NOT NULL CONSTRAINT customers_email_key UNIQUE,
   birth_date  date,
-  status      text NOT NULL CHECK (status IN ('active', 'inactive'))
+  status      smallint NOT NULL CHECK (status IN (0, 1))  -- CustomerStatus values (= the CRM statecode)
 );
 ```
 
-## `repositories/postgres/customer.table.ts`
+Option-set enums keep the CRM values, so the relational column stores the same numbers and the table-mapper still uses `optionSetValue`; no translation table is needed.
+
+## `repositories/postgres/tables/customer.table.ts`
 
 ```ts
 export const CUSTOMER_TABLE = 'customers';
@@ -43,10 +47,14 @@ export interface CustomerTableRow {
   last_name: string;
   email: string;
   birth_date: string | null; // selected as text: "YYYY-MM-DD"
-  status: 'active' | 'inactive';
+  status: number;
 }
+```
 
-export const CUSTOMER_TABLE_COLUMNS =
+## `repositories/postgres/queries/customer.query.ts`
+
+```ts
+export const CUSTOMER_COLUMNS =
   'id, first_name, last_name, email, birth_date::text AS birth_date, status';
 ```
 
@@ -55,15 +63,12 @@ export const CUSTOMER_TABLE_COLUMNS =
 ```ts
 import { Injectable } from '@nestjs/common';
 import { DatabaseError, Pool } from 'pg';
-import { Customer } from '../../domain/customer';
-import { EmailAlreadyInUseError } from '../../domain/customer.errors';
+import { EmailAlreadyInUseError } from '../../domain/errors/customer.errors';
+import { Customer } from '../../domain/models/customer.model';
 import { CustomerRepository } from '../customer.repository';
-import {
-  CUSTOMER_TABLE,
-  CUSTOMER_TABLE_COLUMNS,
-  CustomerTableRow,
-} from './customer.table';
 import { CustomerTableMapper } from './customer.table-mapper';
+import { CUSTOMER_COLUMNS } from './queries/customer.query';
+import { CUSTOMER_TABLE, CustomerTableRow } from './tables/customer.table';
 
 @Injectable()
 export class PostgresCustomerRepository extends CustomerRepository {
@@ -73,7 +78,7 @@ export class PostgresCustomerRepository extends CustomerRepository {
 
   async findById(id: string): Promise<Customer | null> {
     const { rows } = await this.pool.query<CustomerTableRow>(
-      `SELECT ${CUSTOMER_TABLE_COLUMNS} FROM ${CUSTOMER_TABLE} WHERE id = $1`,
+      `SELECT ${CUSTOMER_COLUMNS} FROM ${CUSTOMER_TABLE} WHERE id = $1`,
       [id],
     );
     return rows[0] ? CustomerTableMapper.toDomain(rows[0]) : null;
@@ -81,7 +86,7 @@ export class PostgresCustomerRepository extends CustomerRepository {
 
   async findByEmail(email: string): Promise<Customer | null> {
     const { rows } = await this.pool.query<CustomerTableRow>(
-      `SELECT ${CUSTOMER_TABLE_COLUMNS} FROM ${CUSTOMER_TABLE} WHERE email = $1`,
+      `SELECT ${CUSTOMER_COLUMNS} FROM ${CUSTOMER_TABLE} WHERE email = $1`,
       [email],
     );
     return rows[0] ? CustomerTableMapper.toDomain(rows[0]) : null;
@@ -143,4 +148,4 @@ const row = result.recordset[0];
 
 ## ORM?
 
-Undecided and not needed now. Plain drivers, a query builder (Kysely supports both PostgreSQL and SQL Server) or an ORM all fit behind the abstract repository. ORM entity classes would replace `customer.table.ts` inside `repositories/postgres/`; they never replace domain models.
+Undecided and not needed now. Plain drivers, a query builder (Kysely supports both PostgreSQL and SQL Server) or an ORM all fit behind the abstract repository. ORM entity classes would replace `tables/customer.table.ts` inside `repositories/postgres/`; they never replace domain models.

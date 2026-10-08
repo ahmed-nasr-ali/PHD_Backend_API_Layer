@@ -4,7 +4,7 @@
 
 | Target | File | Technique | Survives a storage migration |
 | --- | --- | --- | --- |
-| Domain models | `domain/customer.spec.ts` | plain unit tests | yes |
+| Domain models and rules | `domain/models/customer.model.spec.ts`, `domain/rules/<rule>.spec.ts` | plain unit tests | yes |
 | Services | `services/create-customer.service.spec.ts` | unit tests with an in-memory repository fake | yes |
 | Controllers / HTTP | `test/customers.e2e-spec.ts` | e2e with fake repositories bound in the testing module | yes |
 | Table-mappers | `repositories/dataverse/customer.table-mapper.spec.ts` | pure tests: real-looking JSON in, domain out (nulls, unknown choices) | removed with the implementation |
@@ -85,4 +85,9 @@ Run Dataverse contract tests only against a dedicated test environment, never pr
 
 ## ⚠️ Jest + NestJS 12 in this repository
 
-NestJS 12 packages are ESM-only. The current `jest.config.ts` (ts-jest, CommonJS) fails on any test that imports `@nestjs/common`, including services with `@Injectable()`: "Must use import to load ES Module". Domain tests are unaffected. Fix the Jest setup (run Jest with `--experimental-vm-modules`) before writing the first service or controller test.
+Two problems block the first test inside `src/` (both reproduced and fixed in a scratch copy; not applied yet):
+
+1. **TypeScript 6 (TS5011):** ts-jest reads `tsconfig.json`, which has `outDir` but no `rootDir`, so every suite fails before running. Fix: `"rootDir": "./"` in `tsconfig.json` (the build keeps its own `rootDir` in `tsconfig.build.json`).
+2. **NestJS 12 is ESM-only:** any test that imports `@nestjs/common` fails with "Must use import to load ES Module". This includes files that import the `core/dataverse` barrel (it re-exports `DataverseModule`), e.g. table-mappers. Fix: run Jest with `node --experimental-vm-modules node_modules/jest/bin/jest.js` in the `test*` scripts.
+
+Pure domain tests (no Nest imports) only need fix 1.

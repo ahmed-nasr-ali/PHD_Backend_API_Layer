@@ -62,14 +62,14 @@ The problems are in the **details**: code that doesn't work as written, ORM-cent
 
 - **Original idea:** `UserOrmEntity` with `@Entity()`, `@Column()`, `@InjectRepository()`, `Repository<UserOrmEntity>`; folder file `user.orm-entity.ts`.
 - **Problem:** the project has no ORM. Dataverse is reached over a Web API and has no entity classes.
-- **Correct approach:** the persistence model for Dataverse is a plain interface describing the JSON (`CustomerTableRow` in `repositories/dataverse/customer.table.ts`). An ORM entity would only appear inside a future `repositories/postgres/` (replacing `customer.table.ts` there) if an ORM is chosen.
+- **Correct approach:** the persistence model for Dataverse is a plain interface describing the JSON (`CustomerTableRow` in `repositories/dataverse/tables/customer.table.ts`). An ORM entity would only appear inside a future `repositories/postgres/` (replacing `tables/customer.table.ts` there) if an ORM is chosen.
 - **Reason:** the underlying concept (persistence model ≠ domain model, repository as bridge) is correct and kept; the ORM machinery is not relevant now.
 
 ### 5. "CRM DTO" naming ⚠️
 
 - **Original idea:** `CrmUserDto` for the CRM payload.
 - **Problem:** "DTO" already means HTTP request/response shapes in the same notes, which recreates the confusion the notes warn about. "Schema" is also taken: it means Zod validation in `dto/`.
-- **Correct approach:** a `<entity>.table.ts` file per storage technology: `repositories/dataverse/customer.table.ts` exports `CUSTOMER_TABLE` (`'contacts'`), `CustomerTableRow` (read shape) and `CUSTOMER_TABLE_COLUMNS`; `OrderTableWriteRow` when writes differ (lookups). `repositories/postgres/customer.table.ts` later uses the same names.
+- **Correct approach:** per storage technology, `tables/` for what the storage returns and `queries/` for what we ask: `repositories/dataverse/tables/customer.table.ts` exports `CUSTOMER_TABLE` (`'contacts'`) and `CustomerTableRow` (read shape; `OrderTableWriteRow` when writes differ), and `repositories/dataverse/queries/customer.query.ts` exports `CUSTOMER_COLUMNS` (+ `CUSTOMER_EXPAND`). `repositories/postgres/` later uses the same names.
 - **Reason:** names should say which boundary a shape belongs to, and each word (`Dto`, `schema`, `table`) should have exactly one meaning.
 
 ### 6. Unrealistic CRM payloads and URLs ⚠️
@@ -225,8 +225,8 @@ These are **proposals only**. No source code was changed.
 | 2 | 💡 `retrieveMultiple` returns `response.value` and drops `oDataNextLink`: lists return at most the first page | `data-access/dynamics-web-api.client.ts` | return `{ items, nextLink }` (or add a paged variant) |
 | 3 | 💡 No handling of 429 throttling (`dynamics-web-api` doesn't retry it either) | `policies/dataverse-retry.policy.ts` | bounded retry honouring `Retry-After`, at least for reads |
 | 4 | 💡 `DataverseException` keeps HTTP status but not the Dataverse error code | `errors/dataverse.exception.ts` | add `code` so that repositories can recognise duplicate-key and similar errors |
-| 5 | 💡 No safe way to build `$filter` strings | `data-access/dataverse-query.ts` | add `odataString()` (guide ch. 10) |
-| 6 | 💡 No `expand` support on `retrieve` / `retrieveMultiple` | `data-access/dataverse.client.ts` | add when the first aggregate needs related data |
+| 5 | ✅ Done: `odataString()` in `data-access/odata.ts`, exported from `core/dataverse` | `data-access/odata.ts` | use it for every string value in a `$filter` |
+| 6 | ✅ Done for lists: `DataverseQuery.expand` (nested `DataverseExpand`); single `retrieve` still has none | `data-access/dataverse-query.ts` | add to `retrieve` when first needed; no `top` with a nested one-to-many expand |
 | 7 | ✅ Done: global exception filters (business, Dataverse, HTTP/validation, catch-all) + `ResponseInterceptor`, one response envelope for every response | `src/core/http/` (`HttpModule`, imported by `AppModule`) | see guide ch. 12 |
-| 8 | ⚠️ Jest + ESM: NestJS 12 packages are ESM-only, and the current ts-jest (CommonJS) setup fails on any test importing `@nestjs/common` ("Must use import to load ES Module") | `jest.config.ts` | run Jest with `--experimental-vm-modules` before writing service tests |
+| 8 | ⚠️ Jest + ESM: NestJS 12 packages are ESM-only, and the current ts-jest (CommonJS) setup fails on any test importing `@nestjs/common` ("Must use import to load ES Module") | `jest.config.ts`, `tsconfig.json` | run Jest with `--experimental-vm-modules`, and add `"rootDir": "./"` to `tsconfig.json` (TypeScript 6 fails every suite with TS5011 without it); both verified in a scratch copy, not applied yet |
 | 9 | ⚠️ Zod-inferred types used in decorated parameters must be imported with `import type` (TS1272 under `isolatedModules` + `emitDecoratorMetadata`) | `tsconfig.json` | convention, documented in the skills |

@@ -35,10 +35,10 @@ customers/
 ├── dto/                  Zod request schemas + response DTO types
 ├── mappers/              Domain → Response DTO
 ├── services/             one class per operation (use case)
-├── domain/               models + business rules + domain errors
+├── domain/               enums/ · models/ · errors/ · rules/ (one type per file)
 └── repositories/
     ├── customer.repository.ts      abstract class (the port)
-    └── dataverse/                  Dataverse implementation + table + table-mapper
+    └── dataverse/                  repository + table-mapper + tables/ (row shapes) + queries/ ($select, $expand)
 ```
 
 Full tree and naming: [folder-structure.md](folder-structure.md).
@@ -60,9 +60,9 @@ Domain = business rules · Service = script for one operation · Repository (abs
 ## Recommended approach
 
 1. **One service class per operation:** `<Verb><Entity>Service` in `services/<verb>-<entity>.service.ts`, with a single `execute(input)`. The Input type lives next to it in `services/<verb>-<entity>.input.ts`; a Result type (only when the service doesn't return a domain object) stays in the service file. No `CustomersService` with many methods.
-2. **Domain models:** private constructor taking a props object, `static create()` (new objects, enforces rules), `static restore()` (from storage, trusted), `readonly` fields, `id: string` generated with `randomUUID()` in the service. See [domain-models.md](domain-models.md).
+2. **Domain models:** `domain/models/<entity>.model.ts` with its props in `<entity>.props.ts`; private constructor taking the props object, `static create()` (new objects, enforces rules), `static restore()` (from storage, trusted), `readonly` fields, `id: string` generated with `randomUUID()` in the service. Fixed value sets (CRM option sets, error codes) are enums in `domain/enums/`, one per file; option-set enums keep the CRM values. See [domain-models.md](domain-models.md).
 3. **Repositories are abstract classes** in `repositories/<entity>.repository.ts`, used directly as DI tokens. Implementations live in `repositories/<tech>/`.
-4. **Errors:** domain and services throw `BusinessError` subclasses from `domain/<entity>.errors.ts`; never `Error`, never `HttpException`. See [error-handling.md](error-handling.md).
+4. **Errors:** domain and services throw `BusinessError` subclasses from `domain/errors/<entity>.errors.ts`, with codes from `domain/enums/<entity>-error-code.enum.ts`; never `Error`, never `HttpException`, never a hand-typed code string. See [error-handling.md](error-handling.md).
 5. **Wiring:** [module-wiring.md](module-wiring.md).
 
 ## Example: a service
@@ -81,8 +81,8 @@ export interface CreateCustomerInput {
 // modules/customers/services/create-customer.service.ts
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Customer } from '../domain/customer';
-import { EmailAlreadyInUseError } from '../domain/customer.errors';
+import { EmailAlreadyInUseError } from '../domain/errors/customer.errors';
+import { Customer } from '../domain/models/customer.model';
 import { CustomerRepository } from '../repositories/customer.repository';
 import type { CreateCustomerInput } from './create-customer.input';
 
@@ -159,6 +159,8 @@ See [common-mistakes.md](common-mistakes.md). The top five:
 
 - [ ] Files are in the folders from [folder-structure.md](folder-structure.md)
 - [ ] `domain/` imports nothing from NestJS, Zod or `core/dataverse`
+- [ ] `domain/` split into `enums/`, `models/`, `errors/` (+ `rules/` when needed), one type per file
+- [ ] Error codes and option-set values used through enum members, never bare strings/numbers
 - [ ] One service per operation, `execute(input)`; Input type in `<verb>-<entity>.input.ts` next to it
 - [ ] Service depends only on abstract repositories and `domain/`
 - [ ] Independent remote reads use `Promise.all`

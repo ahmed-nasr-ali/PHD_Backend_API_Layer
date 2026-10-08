@@ -454,18 +454,20 @@ The **response DTO** is the shape of the JSON (a type, no logic). The **response
 
 ```ts
 // dto/customer-response.dto.ts
-/** The JSON shape returned to API clients. */
+import { CustomerStatus } from '../domain/enums/customer-status.enum';
+
+/** The JSON shape returned to API clients. Option sets go out as their CRM numbers. */
 export interface CustomerResponseDto {
   id: string;
   fullName: string;
   email: string;
-  status: 'active' | 'inactive';
+  status: CustomerStatus | null;
 }
 ```
 
 ```ts
 // mappers/customer-response.mapper.ts
-import { Customer } from '../domain/customer';
+import { Customer } from '../domain/models/customer.model';
 import { CustomerResponseDto } from '../dto/customer-response.dto';
 
 /** Translates the Customer domain model into the API response. */
@@ -529,10 +531,10 @@ The notes correctly point out that "Entity" means two different things:
 | | Persistence model | Domain model |
 | --- | --- | --- |
 | Answers | "How is this stored or transferred?" | "What is this, and what may it do?" |
-| Shape | follows storage: `emailaddress1`, `statecode: 0`, `_new_customerid_value` | follows the business: `email`, `status: 'active'`, `customerId` |
-| Lives in | `repositories/<technology>/<entity>.table.ts` | `domain/` |
+| Shape | follows storage: `emailaddress1`, `statecode: 0`, `_new_customerid_value` | follows the business: `email`, `status: CustomerStatus.Active`, `customerId` |
+| Lives in | `repositories/<technology>/tables/<entity>.table.ts` | `domain/models/` |
 | In this project | `CustomerTableRow` (Dataverse JSON shape) | `Customer` |
-| With an ORM | an ORM entity class (`@Entity()`), replacing `customer.table.ts` | still `Customer` |
+| With an ORM | an ORM entity class (`@Entity()`), replacing `tables/customer.table.ts` | still `Customer` |
 
 ### ORM-specific concepts
 
@@ -546,8 +548,9 @@ The notes correctly point out that "Entity" means two different things:
 
 The notes call the Dataverse payload type `CrmUserDto`. "DTO" is already used for HTTP request/response shapes, and reusing it for storage shapes causes exactly the confusion the notes warn about. "Schema" would be accurate (it *is* the table's schema), but in this project "schema" already means a Zod validation schema in `dto/`. So storage shapes are called **table**:
 
-- `repositories/dataverse/customer.table.ts` holds the table name (`CUSTOMER_TABLE = 'contacts'`), the row type (`CustomerTableRow`) and the column list (`CUSTOMER_TABLE_COLUMNS`),
-- when writes need a different shape (lookups), the same file adds `OrderTableWriteRow`,
+- `repositories/dataverse/tables/customer.table.ts` holds the table name (`CUSTOMER_TABLE = 'contacts'`) and the row type (`CustomerTableRow`); each related table read through an `$expand` gets its own file, prefixed with the querying entity (`InvitationCompoundTableRow`),
+- `repositories/dataverse/queries/customer.query.ts` holds what we ask for: the column list (`CUSTOMER_COLUMNS`) and the `$expand` (`CUSTOMER_EXPAND`),
+- when writes need a different shape (lookups), the table file adds `OrderTableWriteRow`,
 - `repositories/dataverse/customer.table-mapper.ts` holds `CustomerTableMapper` (Table ↔ Domain),
 - a future `repositories/postgres/` uses **the same file names**.
 
@@ -557,11 +560,11 @@ The files are named after the business entity (`customer`), not the Dataverse ta
 
 It is tempting to use `CustomerTableRow` everywhere ("it's just data"). Do not, because:
 
-- business code would test `statecode === 0` and `new_status === 100000001`, which is meaningless outside Dataverse,
+- business code would test bare `statecode === 0` and `new_status === 100000001` (option sets belong in domain enums with the CRM values: `CustomerStatus.Active`, `OrderStatus.Placed`),
 - a migration to PostgreSQL would touch every file that reads these fields,
 - `null` handling for CRM columns would spread everywhere.
 
-> **Review of the original.** ✅ ORM entity vs domain entity, and the repository as the bridge, are correct. 🔧 The concept is taught through TypeORM, which this project doesn't use. Above, it is restated with Dataverse table rows. ⚠️ "CRM DTO" overloads the word DTO; use `<entity>.table.ts` / `<Entity>TableRow`. ❌ The TypeORM example's domain id is `number | null` (database-generated). With Dataverse, ids are GUID strings (chapter 7).
+> **Review of the original.** ✅ ORM entity vs domain entity, and the repository as the bridge, are correct. 🔧 The concept is taught through TypeORM, which this project doesn't use. Above, it is restated with Dataverse table rows. ⚠️ "CRM DTO" overloads the word DTO; use `tables/<entity>.table.ts` / `<Entity>TableRow`. ❌ The TypeORM example's domain id is `number | null` (database-generated). With Dataverse, ids are GUID strings (chapter 7).
 
 ---
 
@@ -585,11 +588,20 @@ The notes give two homes for a rule like "under 18 cannot create an account": an
 
 ### The domain model
 
-```ts
-// domain/customer.ts
-import { CustomerMustBeAdultError } from './customer.errors';
+One type per file: `domain/enums/`, `domain/models/` (`.model.ts` + `.props.ts`), `domain/errors/`.
 
-export type CustomerStatus = 'active' | 'inactive';
+```ts
+// domain/enums/customer-status.enum.ts
+/** Customer status: the CRM `statecode` of `contacts` (values are the CRM values). */
+export enum CustomerStatus {
+  Active = 0,
+  Inactive = 1,
+}
+```
+
+```ts
+// domain/models/customer.props.ts
+import { CustomerStatus } from '../enums/customer-status.enum';
 
 export interface CustomerProps {
   id: string;
@@ -597,7 +609,8 @@ export interface CustomerProps {
   lastName: string;
   email: string;
   birthDate: Date | null;
-  status: CustomerStatus;
+  /** `null` when the CRM holds a value the enum doesn't know. */
+  status: CustomerStatus | null;
 }
 
 export interface NewCustomerProps {
@@ -607,6 +620,13 @@ export interface NewCustomerProps {
   email: string;
   birthDate: Date;
 }
+```
+
+```ts
+// domain/models/customer.model.ts
+import { CustomerStatus } from '../enums/customer-status.enum';
+import { CustomerMustBeAdultError } from '../errors/customer.errors';
+import { CustomerProps, NewCustomerProps } from './customer.props';
 
 export class Customer {
   readonly id: string;
@@ -614,7 +634,7 @@ export class Customer {
   readonly lastName: string;
   readonly email: string;
   readonly birthDate: Date | null;
-  readonly status: CustomerStatus;
+  readonly status: CustomerStatus | null;
 
   private constructor(props: CustomerProps) {
     this.id = props.id;
@@ -630,7 +650,7 @@ export class Customer {
     const customer = new Customer({
       ...props,
       email: props.email.trim().toLowerCase(),
-      status: 'active',
+      status: CustomerStatus.Active,
     });
 
     if (!customer.isAdultOn(today)) {
@@ -659,7 +679,7 @@ export class Customer {
   }
 
   canPlaceOrder(today: Date): boolean {
-    return this.status === 'active' && this.isAdultOn(today);
+    return this.status === CustomerStatus.Active && this.isAdultOn(today);
   }
 }
 ```
@@ -675,18 +695,33 @@ Design decisions, and how they correct the notes:
 | **`birthDate`, not `age`** | The notes store `age`. Age changes every year, so store the birth date and compute age for a given date. |
 | **`today` passed in** | Domain logic stays deterministic and testable; no hidden `new Date()`. |
 | **No NestJS, Zod or Dataverse imports** | The domain is plain TypeScript. |
+| **Option sets as enums with the CRM values** | Rules compare enum members (`CustomerStatus.Active`), never bare numbers; the table-mapper maps unknown values to `null` with `optionSetValue`. |
+| **One type per file** | Enums, props, model, errors and pure rules (`domain/rules/`) each change for their own reason. |
 
 ### Domain errors
 
+Error codes are enum members, never hand-typed strings.
+
 ```ts
-// domain/customer.errors.ts
-import { BusinessError, BusinessErrorKind } from '../../../core/errors/business-error';
+// domain/enums/customer-error-code.enum.ts
+/** Codes the customers feature returns in the error envelope. Part of the API contract: never rename a value. */
+export enum CustomerErrorCode {
+  NotFound = 'CUSTOMER_NOT_FOUND',
+  EmailAlreadyInUse = 'EMAIL_ALREADY_IN_USE',
+  MustBeAdult = 'CUSTOMER_MUST_BE_ADULT',
+}
+```
+
+```ts
+// domain/errors/customer.errors.ts
+import { BusinessError, BusinessErrorKind } from '../../../../core/errors';
+import { CustomerErrorCode } from '../enums/customer-error-code.enum';
 
 export class CustomerNotFoundError extends BusinessError {
   readonly kind = BusinessErrorKind.NotFound;
 
   constructor(id: string) {
-    super(`Customer ${id} was not found`, 'CUSTOMER_NOT_FOUND');
+    super(`Customer ${id} was not found`, CustomerErrorCode.NotFound);
   }
 }
 
@@ -694,7 +729,7 @@ export class EmailAlreadyInUseError extends BusinessError {
   readonly kind = BusinessErrorKind.Conflict;
 
   constructor(email: string) {
-    super(`Email ${email} is already in use`, 'EMAIL_ALREADY_IN_USE');
+    super(`Email ${email} is already in use`, CustomerErrorCode.EmailAlreadyInUse);
   }
 }
 
@@ -702,7 +737,7 @@ export class CustomerMustBeAdultError extends BusinessError {
   readonly kind = BusinessErrorKind.RuleViolation;
 
   constructor() {
-    super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
+    super('Customer must be at least 18 years old', CustomerErrorCode.MustBeAdult);
   }
 }
 ```
@@ -789,7 +824,7 @@ A **port** is a contract, owned by the application, describing what the applicat
 
 ```ts
 // customers/repositories/customer.repository.ts
-import { Customer } from '../domain/customer';
+import { Customer } from '../domain/models/customer.model';
 
 /**
  * What the services need from customer storage (the port).
@@ -874,18 +909,23 @@ The notes ask: should `UserRepository.findById` return the user with units, or s
 
 ---
 
-## 10. The Dataverse repository: repository + table + table-mapper
+## 10. The Dataverse repository: repository + tables + queries + table-mapper
 
-Everything Dataverse-specific for a feature lives in three files:
+Everything Dataverse-specific for a feature lives in `repositories/dataverse/`:
 
 ```text
 customers/repositories/
 ├── customer.repository.ts                   abstract (what services see)
 └── dataverse/
     ├── dataverse-customer.repository.ts     extends CustomerRepository, uses DataverseClient
-    ├── customer.table.ts                    CUSTOMER_TABLE + CustomerTableRow + CUSTOMER_TABLE_COLUMNS
-    └── customer.table-mapper.ts             CustomerTableMapper: Table ↔ Domain
+    ├── customer.table-mapper.ts             CustomerTableMapper: Table ↔ Domain
+    ├── tables/                              what Dataverse returns: one file per CRM table
+    │   └── customer.table.ts                CUSTOMER_TABLE + CustomerTableRow
+    └── queries/                             what we ask for
+        └── customer.query.ts                CUSTOMER_COLUMNS ($select) + CUSTOMER_EXPAND ($expand)
 ```
+
+A real feature in this shape, with a nested `$expand`, is `src/modules/invitations/`.
 
 ### What Dataverse actually returns
 
@@ -918,7 +958,7 @@ A custom table with a lookup and a choice returns:
 ### The table (persistence model)
 
 ```ts
-// customers/repositories/dataverse/customer.table.ts
+// customers/repositories/dataverse/tables/customer.table.ts
 /** Dataverse table (entity set) that stores customers. */
 export const CUSTOMER_TABLE = 'contacts';
 
@@ -929,10 +969,16 @@ export interface CustomerTableRow {
   lastname: string | null;
   emailaddress1: string | null;
   birthdate: string | null; // Date-only column: "YYYY-MM-DD"
-  statecode: number; // 0 = Active, 1 = Inactive
+  statecode: number | null; // option set → CustomerStatus
 }
+```
 
-export const CUSTOMER_TABLE_COLUMNS: (keyof CustomerTableRow)[] = [
+```ts
+// customers/repositories/dataverse/queries/customer.query.ts
+import { CustomerTableRow } from '../tables/customer.table';
+
+/** Customer columns to read ($select). */
+export const CUSTOMER_COLUMNS: (keyof CustomerTableRow)[] = [
   'contactid',
   'firstname',
   'lastname',
@@ -948,11 +994,10 @@ Always `$select` explicit columns. Without it Dataverse returns every column, wh
 
 ```ts
 // customers/repositories/dataverse/customer.table-mapper.ts
-import { DataverseException } from '../../../../core/dataverse';
-import { Customer } from '../../domain/customer';
-import { CustomerTableRow } from './customer.table';
-
-const ACTIVE = 0;
+import { DataverseException, optionSetValue } from '../../../../core/dataverse';
+import { CustomerStatus } from '../../domain/enums/customer-status.enum';
+import { Customer } from '../../domain/models/customer.model';
+import { CustomerTableRow } from './tables/customer.table';
 
 /** Translates between the Dataverse table row and the Customer domain model. */
 export class CustomerTableMapper {
@@ -968,7 +1013,7 @@ export class CustomerTableMapper {
       lastName: row.lastname ?? '',
       email: row.emailaddress1.toLowerCase(),
       birthDate: row.birthdate ? new Date(`${row.birthdate}T00:00:00Z`) : null,
-      status: row.statecode === ACTIVE ? 'active' : 'inactive',
+      status: optionSetValue(CustomerStatus, row.statecode), // unknown or empty → null
     });
   }
 
@@ -997,8 +1042,20 @@ Never silently invent business data.
 
 #### Choices (option sets) and lookups
 
+Option sets are enums in `domain/enums/` whose values **are the CRM values**; the table-mapper turns the row's number into a member with `optionSetValue` (unknown or empty → `null`), and writing back needs no translation.
+
 ```ts
-// orders/repositories/dataverse/order.table.ts
+// orders/domain/enums/order-status.enum.ts
+/** Order status: the CRM `new_status` choice (values are the CRM values). */
+export enum OrderStatus {
+  Draft = 100000000,
+  Placed = 100000001,
+  Cancelled = 100000002,
+}
+```
+
+```ts
+// orders/repositories/dataverse/tables/order.table.ts
 /**
  * Dataverse table (entity set) that stores orders.
  * `new_` is a placeholder publisher prefix: use your solution's real schema names.
@@ -1008,7 +1065,7 @@ export const ORDER_TABLE = 'new_orders';
 /** One row of the `new_orders` table, as the Web API returns it (read shape). */
 export interface OrderTableRow {
   new_orderid: string;
-  new_status: number | null; // Choice column (option set)
+  new_status: number | null; // Choice column (option set) → OrderStatus
   new_total: number | null; // Currency column
   _new_customerid_value: string; // Lookup to contact, read form
 }
@@ -1016,12 +1073,15 @@ export interface OrderTableRow {
 /** Write shape: lookups are set by binding to the related record's URL. */
 export interface OrderTableWriteRow {
   new_orderid: string;
-  new_status: number;
+  new_status: OrderStatus;
   new_total: number;
   'new_CustomerId@odata.bind': string; // Navigation property name, case-sensitive
 }
+```
 
-export const ORDER_TABLE_COLUMNS: (keyof OrderTableRow)[] = [
+```ts
+// orders/repositories/dataverse/queries/order.query.ts
+export const ORDER_COLUMNS: (keyof OrderTableRow)[] = [
   'new_orderid',
   'new_status',
   'new_total',
@@ -1031,39 +1091,19 @@ export const ORDER_TABLE_COLUMNS: (keyof OrderTableRow)[] = [
 
 ```ts
 // orders/repositories/dataverse/order.table-mapper.ts
-import { DataverseException } from '../../../../core/dataverse';
-import { CUSTOMER_TABLE } from '../../../customers/repositories/dataverse/customer.table';
-import { Order, OrderStatus } from '../../domain/order';
-import { OrderTableRow, OrderTableWriteRow } from './order.table';
-
-/** Choice values as defined in the Dataverse solution. */
-const STATUS_TO_CHOICE: Record<OrderStatus, number> = {
-  draft: 100000000,
-  placed: 100000001,
-  cancelled: 100000002,
-};
-
-const CHOICE_TO_STATUS = new Map<number, OrderStatus>(
-  Object.entries(STATUS_TO_CHOICE).map(([status, choice]) => [
-    choice,
-    status as OrderStatus,
-  ]),
-);
+import { optionSetValue } from '../../../../core/dataverse';
+import { CUSTOMER_TABLE } from '../../../customers/repositories/dataverse/tables/customer.table';
+import { OrderStatus } from '../../domain/enums/order-status.enum';
+import { Order } from '../../domain/models/order.model';
+import { OrderTableRow, OrderTableWriteRow } from './tables/order.table';
 
 /** Translates between the Dataverse table row and the Order domain model. */
 export class OrderTableMapper {
   static toDomain(row: OrderTableRow): Order {
-    const status = CHOICE_TO_STATUS.get(row.new_status ?? -1);
-    if (!status) {
-      throw new DataverseException(
-        `Order ${row.new_orderid} has unknown status ${row.new_status}`,
-      );
-    }
-
     return Order.restore({
       id: row.new_orderid,
       customerId: row._new_customerid_value,
-      status,
+      status: optionSetValue(OrderStatus, row.new_status), // unknown → null; the domain decides
       total: row.new_total ?? 0,
     });
   }
@@ -1071,7 +1111,7 @@ export class OrderTableMapper {
   static toTableRow(order: Order): OrderTableWriteRow {
     return {
       new_orderid: order.id,
-      new_status: STATUS_TO_CHOICE[order.status],
+      new_status: order.status, // the member already is the CRM value
       new_total: order.total,
       'new_CustomerId@odata.bind': `/${CUSTOMER_TABLE}(${order.customerId})`,
     };
@@ -1079,7 +1119,7 @@ export class OrderTableMapper {
 }
 ```
 
-- Choice integers (`100000001`) **never** leave the table-mapper; the domain uses `'placed'`.
+- Option-set numbers (`100000001`) are never written as bare numbers: the domain compares `OrderStatus.Placed`.
 - Lookups are **read** as `_<logicalname>_value` and **written** with `<NavigationPropertyName>@odata.bind: "/<entityset>(<guid>)"`. The navigation property name is case-sensitive and often differs from the column's logical name, so check the solution metadata.
 - Computed or read-only columns (`fullname`, `createdon`) are never written.
 
@@ -1088,16 +1128,16 @@ export class OrderTableMapper {
 ```ts
 // customers/repositories/dataverse/dataverse-customer.repository.ts
 import { Injectable } from '@nestjs/common';
-import { DataverseClient, DataverseException } from '../../../../core/dataverse';
-import { odataString } from '../../../../core/dataverse/data-access/odata';
-import { Customer } from '../../domain/customer';
-import { CustomerRepository } from '../customer.repository';
 import {
-  CUSTOMER_TABLE,
-  CUSTOMER_TABLE_COLUMNS,
-  CustomerTableRow,
-} from './customer.table';
+  DataverseClient,
+  DataverseException,
+  odataString,
+} from '../../../../core/dataverse';
+import { Customer } from '../../domain/models/customer.model';
+import { CustomerRepository } from '../customer.repository';
 import { CustomerTableMapper } from './customer.table-mapper';
+import { CUSTOMER_COLUMNS } from './queries/customer.query';
+import { CUSTOMER_TABLE, CustomerTableRow } from './tables/customer.table';
 
 @Injectable()
 export class DataverseCustomerRepository extends CustomerRepository {
@@ -1110,7 +1150,7 @@ export class DataverseCustomerRepository extends CustomerRepository {
       const row = await this.dataverse.retrieve<CustomerTableRow>(
         CUSTOMER_TABLE,
         id,
-        CUSTOMER_TABLE_COLUMNS,
+        CUSTOMER_COLUMNS,
       );
       return CustomerTableMapper.toDomain(row);
     } catch (error) {
@@ -1125,7 +1165,7 @@ export class DataverseCustomerRepository extends CustomerRepository {
     const [row] = await this.dataverse.retrieveMultiple<CustomerTableRow>(
       CUSTOMER_TABLE,
       {
-        select: CUSTOMER_TABLE_COLUMNS,
+        select: CUSTOMER_COLUMNS,
         filter: `emailaddress1 eq ${odataString(email)}`,
         top: 1,
       },
@@ -1144,7 +1184,7 @@ export class DataverseCustomerRepository extends CustomerRepository {
 
 Notes on this code:
 
-- **The repository uses the shared `DataverseClient` from `core/dataverse`.** The notes put a `CrmClient` and a `CrmAuthService` inside every feature's `infrastructure/crm/`. That duplicates connection logic per feature. Connection concerns (auth, retry, base URL) live once in `core/dataverse`; features contain only the repository, the table and the table-mapper.
+- **The repository uses the shared `DataverseClient` from `core/dataverse`.** The notes put a `CrmClient` and a `CrmAuthService` inside every feature's `infrastructure/crm/`. That duplicates connection logic per feature. Connection concerns (auth, retry, base URL) live once in `core/dataverse`; features contain only the repository, `tables/`, `queries/` and the table-mapper.
 - **404 becomes `null`.** Not-found is an expected outcome, not an infrastructure failure.
 
 #### OData filter injection
@@ -1155,7 +1195,7 @@ Notes on this code:
 filter: `emailaddress1 eq '${email}'` // ❌ email = "x' or statecode eq 0 or emailaddress1 eq 'y"
 ```
 
-Escape string literals (single quotes are doubled in OData) with a small helper. **This helper does not exist yet; proposed for `core/dataverse/data-access/odata.ts`:**
+Escape string literals (single quotes are doubled in OData) with `odataString`, exported from `core/dataverse` (`data-access/odata.ts`):
 
 ```ts
 /** Quotes a value as an OData string literal, escaping embedded single quotes. */
@@ -1175,7 +1215,7 @@ async findRecentByCustomer(customerId: string, limit: number): Promise<Order[]> 
   }
 
   const rows = await this.dataverse.retrieveMultiple<OrderTableRow>(ORDER_TABLE, {
-    select: ORDER_TABLE_COLUMNS,
+    select: ORDER_COLUMNS,
     filter: `_new_customerid_value eq ${customerId}`,
     orderBy: ['createdon desc'],
     top: limit,
@@ -1194,7 +1234,7 @@ The notes are right that this is an infrastructure decision invisible to the ser
 | `$expand` a collection-valued navigation property (`?$expand=contact_new_orders($select=new_total;$top=5)`) | small child sets on a single-record retrieve |
 | a second query with `$filter` on the lookup | large child sets, or when you need paging or ordering of children |
 
-The current `DataverseClient.retrieve` signature has no `expand` parameter (`dynamics-web-api` supports it). Add it to `DataverseClient` when the first aggregate needs it. **The port does not change.**
+`retrieveMultiple` takes `expand` through `DataverseQuery` (nested `DataverseExpand` objects, kept in `queries/<entity>.query.ts`); single `retrieve` has none yet: add it when first needed. **The port does not change.** With a nested expand on a one-to-many relationship, Dataverse accepts only `$select`, `$filter` and `$orderby` at the top level: adding `top` fails (`0x80060888`).
 
 ### Pagination
 
@@ -1265,8 +1305,8 @@ async getUser(id: string) {
 1. **Throttling (429).** Dataverse returns `429 Too Many Requests` with a `Retry-After` header when service-protection limits are hit. `dynamics-web-api` does not retry these, and `TokenRefreshRetryPolicy` only handles 401. Add a bounded retry honouring `Retry-After` for idempotent reads at minimum, as a new `DataverseRetryPolicy` implementation (or a decorator wrapping the current one) and one `useClass` change in `DataverseModule`; `DynamicsWebApiClient` does not change.
 2. **Pagination.** `retrieveMultiple` drops `oDataNextLink` (chapter 10).
 3. **Error detail.** `DataverseException` keeps the HTTP status but not the Dataverse error `code` (for example the duplicate-key code). Repositories need the code to translate specific failures reliably.
-4. **`$expand` support** on `retrieve` / `retrieveMultiple`.
-5. **`odataString` helper** for safe filters.
+4. ✅ **`$expand` support** on `retrieveMultiple` (done: `DataverseQuery.expand`); `retrieve` still has none.
+5. ✅ **`odataString` helper** for safe filters (done: `core/dataverse/data-access/odata.ts`), plus `optionSetValue` for option sets.
 
 ### Authorisation: the application user
 
@@ -1644,15 +1684,18 @@ src/
     │   │   ├── create-customer.service.ts        # CreateCustomerService.execute(input)
     │   │   ├── create-customer.input.ts          # CreateCustomerInput (type only)
     │   │   └── get-customer.service.ts           # execute(id): no input file
-    │   ├── domain/
-    │   │   ├── customer.ts                       # model + rules
-    │   │   └── customer.errors.ts
+    │   ├── domain/                               # one type per file
+    │   │   ├── enums/                            # customer-status.enum.ts, customer-error-code.enum.ts
+    │   │   ├── models/                           # customer.model.ts (model + rules), customer.props.ts
+    │   │   ├── errors/                           # customer.errors.ts
+    │   │   └── rules/                            # optional: pure logic across several models
     │   └── repositories/
     │       ├── customer.repository.ts            # abstract class (port + DI token)
     │       └── dataverse/
     │           ├── dataverse-customer.repository.ts
-    │           ├── customer.table.ts             # CUSTOMER_TABLE + CustomerTableRow + columns
-    │           └── customer.table-mapper.ts      # Table ↔ Domain
+    │           ├── customer.table-mapper.ts      # Table ↔ Domain
+    │           ├── tables/customer.table.ts      # CUSTOMER_TABLE + CustomerTableRow
+    │           └── queries/customer.query.ts     # CUSTOMER_COLUMNS (+ CUSTOMER_EXPAND)
     └── orders/
         └── … same shape; depends on customers via its exported CustomerRepository
 ```
@@ -1667,7 +1710,8 @@ More cases (a feature with many services, a service that uses several repositori
 | `core/` instead of `shared/` | matches the existing code; holds *technical* infrastructure only. Business concepts shared by features belong to a feature module that exports them. |
 | two kinds of mapper, in two places | `CustomerTableMapper` (Table ↔ Domain) in `repositories/dataverse/`; `CustomerResponseMapper` (Domain → Response DTO) in `mappers/`. The notes' root-level `mappers/user.mapper.ts` mixed HTTP→Input and Domain→Response in one class. |
 | `dto/` holds request schemas **and** response DTO types | both are HTTP shapes; the word "schema" is reserved for Zod |
-| `<entity>.table.ts`, not `<entity>.schema.ts` | "schema" already means Zod in `dto/`; Dataverse calls these tables |
+| `tables/<entity>.table.ts` + `queries/<entity>.query.ts`, never "schema" | "schema" already means Zod in `dto/`; `tables/` says what Dataverse returns, `queries/` what we ask for |
+| `domain/enums/`, `models/`, `errors/`, `rules/`, one type per file | each file changes for one reason; option sets and error codes are always enum members |
 | `<verb>-<entity>.input.ts` next to its service, no top-level `inputs/` folder | the Input belongs to one service; keeping it beside the service keeps the operation in one place |
 | `repositories/dataverse/` (not `crm/`) | names the actual technology; a future `repositories/postgres/` sits next to it with the same file names |
 | one file per service | see chapter 8 |
@@ -1770,12 +1814,12 @@ it('rejects a duplicate email', async () => {
 
 ## 17. Adding PostgreSQL / SQL Server repositories
 
-A relational repository is **another implementation of the same abstract repository**, in its own folder with **the same file names**: its own table file and table-mapper.
+A relational repository is **another implementation of the same abstract repository**, in its own folder with **the same file names**: its own `tables/`, `queries/` and table-mapper.
 
 ```text
 customers/repositories/
-├── dataverse/   dataverse-customer.repository.ts   customer.table.ts   customer.table-mapper.ts
-└── postgres/    postgres-customer.repository.ts    customer.table.ts   customer.table-mapper.ts
+├── dataverse/   dataverse-customer.repository.ts   tables/customer.table.ts   queries/customer.query.ts   customer.table-mapper.ts
+└── postgres/    postgres-customer.repository.ts    tables/customer.table.ts   queries/customer.query.ts   customer.table-mapper.ts
 ```
 
 ### Schema (PostgreSQL)
@@ -1787,9 +1831,11 @@ CREATE TABLE customers (
   last_name   text NOT NULL,
   email       text NOT NULL CONSTRAINT customers_email_key UNIQUE,
   birth_date  date,
-  status      text NOT NULL CHECK (status IN ('active', 'inactive'))
+  status      smallint NOT NULL CHECK (status IN (0, 1))  -- CustomerStatus (= the CRM statecode values)
 );
 ```
+
+Option-set enums keep the CRM values, so the relational column stores the same numbers and no translation table is needed.
 
 ### PostgreSQL repository (with `pg`)
 
@@ -1803,7 +1849,7 @@ interface CustomerTableRow {
   last_name: string;
   email: string;
   birth_date: string | null; // selected as text: "YYYY-MM-DD"
-  status: 'active' | 'inactive';
+  status: number; // → CustomerStatus via optionSetValue in the table-mapper
 }
 
 const COLUMNS =
@@ -1936,7 +1982,7 @@ The notes suggest `USER_DATA_SOURCE=crm|postgres`. Supporting both for the **sam
 
 | Change | Where you edit | Untouched |
 | --- | --- | --- |
-| Dataverse renames/replaces a column (`emailaddress1` → custom column) | `CustomerTableRow`, `CUSTOMER_TABLE_COLUMNS`, `CustomerTableMapper` | everything else |
+| Dataverse renames/replaces a column (`emailaddress1` → custom column) | `CustomerTableRow`, `CUSTOMER_COLUMNS`, `CustomerTableMapper` | everything else |
 | A choice value is added in Dataverse | `OrderTableMapper` (+ domain `OrderStatus` if the business uses it) | controllers, abstract repositories |
 | Dataverse URL / API version / credentials | env vars, `core/dataverse/dataverse.providers.ts` | all features |
 | Auth method changes (secret → certificate / managed identity) | `core/dataverse` (`TokenProvider` implementation) | all features |

@@ -28,14 +28,25 @@ src/
         │   ├── update-customer.service.ts
         │   └── update-customer.input.ts
         ├── domain/
-        │   ├── customer.ts                       model + rules
-        │   └── customer.errors.ts                BusinessError subclasses
+        │   ├── enums/                            one enum per file
+        │   │   ├── customer-status.enum.ts       CRM option set: values are the CRM values
+        │   │   └── customer-error-code.enum.ts   the feature's error codes
+        │   ├── models/                           one type per file
+        │   │   ├── customer.model.ts             class: private constructor, create / restore, rules
+        │   │   └── customer.props.ts             what the class is built from
+        │   ├── errors/
+        │   │   └── customer.errors.ts            BusinessError subclasses (codes from the enum)
+        │   └── rules/                            optional: pure logic across several models
+        │       └── pick-customer-for-x.ts
         └── repositories/
             ├── customer.repository.ts            abstract class (port + DI token)
             └── dataverse/
                 ├── dataverse-customer.repository.ts
-                ├── customer.table.ts             Dataverse table: name + columns + row shape
-                └── customer.table-mapper.ts      Table ↔ Domain
+                ├── customer.table-mapper.ts      Table ↔ Domain
+                ├── tables/                       what Dataverse returns: one file per CRM table
+                │   └── customer.table.ts         CUSTOMER_TABLE + CustomerTableRow
+                └── queries/                      what we ask for
+                    └── customer.query.ts         CUSTOMER_COLUMNS ($select) + CUSTOMER_EXPAND ($expand)
 ```
 
 ## What each word means
@@ -45,6 +56,7 @@ src/
 | `schema` | Zod validation **only** (inside `dto/`) | `createCustomerSchema` |
 | `Dto` | HTTP shapes **only** (request or response) | `CreateCustomerDto`, `CustomerResponseDto` |
 | `table` | the storage table (Dataverse today, SQL later) | `CUSTOMER_TABLE`, `CustomerTableRow` |
+| `query` | what we ask Dataverse for (`$select`, `$expand`) | `CUSTOMER_COLUMNS`, `CUSTOMER_EXPAND` |
 | `TableMapper` | Table ↔ Domain | `CustomerTableMapper` |
 | `ResponseMapper` | Domain → Response DTO | `CustomerResponseMapper` |
 | `Service` | one operation (use case) | `CreateCustomerService` |
@@ -54,8 +66,11 @@ src/
 
 | Thing | File | Exported names |
 | --- | --- | --- |
-| Domain model | `domain/<entity>.ts` | `Customer` |
-| Domain errors | `domain/<entity>.errors.ts` | `CustomerNotFoundError` |
+| Enum (option set / error codes) | `domain/enums/<name>.enum.ts` | `CustomerStatus`, `CustomerErrorCode` |
+| Domain model | `domain/models/<entity>.model.ts` | `Customer` |
+| Model props | `domain/models/<entity>.props.ts` | `CustomerProps` |
+| Domain errors | `domain/errors/<entity>.errors.ts` | `CustomerNotFoundError` |
+| Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (+ its Result type, if it isn't a domain object) |
 | Service input | `services/<verb>-<entity>.input.ts` | `CreateCustomerInput` |
 | Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
@@ -64,8 +79,9 @@ src/
 | Response mapper | `mappers/<entity>-response.mapper.ts` | `CustomerResponseMapper` |
 | Repository (port) | `repositories/<entity>.repository.ts` | `CustomerRepository` |
 | Repository (impl) | `repositories/dataverse/dataverse-<entity>.repository.ts` | `DataverseCustomerRepository` |
-| Table | `repositories/dataverse/<entity>.table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow`, `CUSTOMER_TABLE_COLUMNS` |
+| Table (row shape) | `repositories/dataverse/tables/<entity>[-<table>].table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow`; a related table read through an expand gets the entity prefix: `InvitationCompoundTableRow` |
 | Table write shape (if different) | same file | `OrderTableWriteRow` |
+| Query | `repositories/dataverse/queries/<entity>.query.ts` | `CUSTOMER_COLUMNS`, `CUSTOMER_EXPAND` |
 | Table mapper | `repositories/dataverse/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
 | SQL later | `repositories/postgres/…` | same names: `<entity>.table.ts`, `<entity>.table-mapper.ts`, `Postgres<Entity>Repository` |
 
@@ -78,3 +94,6 @@ src/
 - The technology folder under `repositories/` is named after the technology (`dataverse/`, later `postgres/`), never "crm".
 - Never put a Dataverse client or auth service inside a feature; `core/dataverse` owns them.
 - A feature without business rules may omit `domain/`.
+- One type per file inside `domain/`: each enum, model and props type has its own file.
+- Error codes and CRM option-set values are always enum members (`InvitedAs.Helpers`), never bare strings or numbers.
+- `tables/` describes what Dataverse returns; `queries/` describes what we ask for. "schema" is never used for them: it stays reserved for Zod in `dto/`.

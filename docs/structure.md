@@ -37,13 +37,20 @@ src/
     │   └── create-customer.service.ts             ④ execute()
     │                                              ⑬ returns Customer
     ├── domain/
-    │   ├── customer.ts                            ⑤ Customer.create(): rules + new id
-    │   └── customer.errors.ts                     ⑤ ⑨ domain errors
+    │   ├── enums/
+    │   │   ├── customer-status.enum.ts            ⑤ CustomerStatus (CRM statecode values)
+    │   │   └── customer-error-code.enum.ts        ⑤ ⑨ error codes
+    │   ├── models/
+    │   │   ├── customer.model.ts                  ⑤ Customer.create(): rules + new id
+    │   │   └── customer.props.ts                  ⑤ what Customer is built from
+    │   └── errors/
+    │       └── customer.errors.ts                 ⑤ ⑨ domain errors
     ├── repositories/
     │   ├── customer.repository.ts                 ⑥ findByEmail()  ⑩ create()  (abstract)
     │   └── dataverse/
     │       ├── dataverse-customer.repository.ts   ⑦ ⑪ implementation
-    │       ├── customer.table.ts                  ⑦ ⑪ 'contacts' + columns + row type
+    │       ├── tables/customer.table.ts           ⑦ ⑪ 'contacts' + row type
+    │       ├── queries/customer.query.ts          ⑦ $select columns
     │       └── customer.table-mapper.ts           ⑨ toDomain   ⑪ toTableRow
     └── mappers/
         └── customer-response.mapper.ts            ⑭ Customer → CustomerResponseDto
@@ -55,9 +62,9 @@ src/
 | ② | `create-customer.dto.ts` + `zodBody` | The body is checked, producing `CreateCustomerDto` | 422 |
 | ③ | controller → `create-customer.input.ts` | The controller builds `CreateCustomerInput` (string date → `Date`) | |
 | ④ | `create-customer.service.ts` | `execute(input)` starts | |
-| ⑤ | `domain/customer.ts` | `Customer.create()` applies the rules and generates the id | 422 `CustomerMustBeAdultError` |
+| ⑤ | `domain/models/customer.model.ts` | `Customer.create()` applies the rules and generates the id | 422 `CustomerMustBeAdultError` |
 | ⑥ | `customer.repository.ts` | The service calls `findByEmail(email)` | |
-| ⑦ | `dataverse-customer.repository.ts` + `customer.table.ts` | The repository builds the query (table + `$select` + `$filter`) | |
+| ⑦ | `dataverse-customer.repository.ts` + `tables/customer.table.ts` + `queries/customer.query.ts` | The repository builds the query (table + `$select` + `$filter`) | |
 | ⑧ | `core/dataverse` | `DataverseClient` gets the token and sends the GET to `contacts` | 502 / 503 |
 | ⑨ | `customer.table-mapper.ts` | If a row came back, `toDomain` turns it into a `Customer`, and the service throws | 409 `EmailAlreadyInUseError` |
 | ⑩ | `customer.repository.ts` | The service calls `create(customer)` | |
@@ -118,9 +125,9 @@ async execute(input: CreateCustomerInput): Promise<Customer> {
   return customer;                                                             // ⑬
 }
 
-// ── domain/customer.ts (inside class Customer) ──────────────────── ⑤
+// ── domain/models/customer.model.ts (inside class Customer) ─────── ⑤
 static create(props: NewCustomerProps, today: Date): Customer {
-  const customer = new Customer({ ...props, email: props.email.trim().toLowerCase(), status: 'active' });
+  const customer = new Customer({ ...props, email: props.email.trim().toLowerCase(), status: CustomerStatus.Active });
   if (!customer.isAdultOn(today)) {
     throw new CustomerMustBeAdultError();                                      // kind: RuleViolation
   }
@@ -137,19 +144,25 @@ isAdultOn(date: Date): boolean {
   return eighteenthBirthday <= date;
 }
 
-// ── domain/customer.errors.ts ───────────────────────────────────── ⑤ ⑨
+// ── domain/enums/customer-error-code.enum.ts ────────────────────── ⑤ ⑨
+export enum CustomerErrorCode {
+  MustBeAdult = 'CUSTOMER_MUST_BE_ADULT',
+  EmailAlreadyInUse = 'EMAIL_ALREADY_IN_USE',
+}
+
+// ── domain/errors/customer.errors.ts ────────────────────────────── ⑤ ⑨
 // No HTTP here: only a kind + code. Each caller decides what to do with it.
 export class CustomerMustBeAdultError extends BusinessError {
   readonly kind = BusinessErrorKind.RuleViolation;
   constructor() {
-    super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
+    super('Customer must be at least 18 years old', CustomerErrorCode.MustBeAdult);
   }
 }
 
 export class EmailAlreadyInUseError extends BusinessError {
   readonly kind = BusinessErrorKind.Conflict;
   constructor(email: string) {
-    super(`Email ${email} is already in use`, 'EMAIL_ALREADY_IN_USE');
+    super(`Email ${email} is already in use`, CustomerErrorCode.EmailAlreadyInUse);
   }
 }
 
@@ -162,8 +175,8 @@ export abstract class CustomerRepository {
 // ── repositories/dataverse/dataverse-customer.repository.ts ─────── ⑦ ⑧ ⑨ ⑪ ⑫
 async findByEmail(email: string): Promise<Customer | null> {
   const [row] = await this.dataverse.retrieveMultiple<CustomerTableRow>( // ⑧ GET contacts
-    CUSTOMER_TABLE,                                                      // ⑦ from customer.table.ts
-    { select: CUSTOMER_TABLE_COLUMNS, filter: `emailaddress1 eq ${odataString(email)}`, top: 1 },
+    CUSTOMER_TABLE,                                                      // ⑦ from tables/customer.table.ts
+    { select: CUSTOMER_COLUMNS, filter: `emailaddress1 eq ${odataString(email)}`, top: 1 }, // ⑦ queries/customer.query.ts
   );
   return row ? CustomerTableMapper.toDomain(row) : null;                 // ⑨
 }
@@ -208,7 +221,7 @@ src/
 │   ├── dataverse/                        # (exists) connection to Dataverse
 │   │   ├── config/dataverse.config.ts
 │   │   ├── crm-token/                    # MSAL token
-│   │   ├── data-access/                  # DataverseClient + DynamicsWebApiClient + odata.ts
+│   │   ├── data-access/                  # DataverseClient + DynamicsWebApiClient + DataverseQuery/Expand + odata.ts (odataString) + option-set.ts (optionSetValue)
 │   │   ├── errors/dataverse.exception.ts
 │   │   ├── policies/                     # DataverseRetryPolicy (abstract) + TokenRefreshRetryPolicy (401)
 │   │   ├── dataverse.module.ts
@@ -262,17 +275,29 @@ modules/customers/
 │   ├── list-customers.service.ts
 │   └── list-customers.input.ts           # filters + cursor
 │
-├── domain/
-│   ├── customer.ts                       # model: create / restore / rules
-│   └── customer.errors.ts                # CustomerNotFoundError, EmailAlreadyInUseError, ...
+├── domain/                               # one type per file
+│   ├── enums/
+│   │   ├── customer-status.enum.ts       # CustomerStatus: CRM option set, CRM values
+│   │   └── customer-error-code.enum.ts   # CustomerErrorCode: the feature's error codes
+│   ├── models/
+│   │   ├── customer.model.ts             # model: create / restore / rules
+│   │   └── customer.props.ts             # CustomerProps, NewCustomerProps
+│   ├── errors/
+│   │   └── customer.errors.ts            # CustomerNotFoundError, EmailAlreadyInUseError, ...
+│   └── rules/                            # optional: pure logic across several models
 │
 └── repositories/
     ├── customer.repository.ts            # abstract class (what services use)
     └── dataverse/
         ├── dataverse-customer.repository.ts
-        ├── customer.table.ts             # Dataverse table: CUSTOMER_TABLE + CustomerTableRow + columns
-        └── customer.table-mapper.ts      # Table ↔ Domain
+        ├── customer.table-mapper.ts      # Table ↔ Domain (option sets via optionSetValue)
+        ├── tables/
+        │   └── customer.table.ts         # CUSTOMER_TABLE + CustomerTableRow (what Dataverse returns)
+        └── queries/
+            └── customer.query.ts         # CUSTOMER_COLUMNS ($select) + CUSTOMER_EXPAND ($expand)
 ```
+
+A real feature in this shape: `src/modules/invitations/` (`POST /invitations/check-code`).
 
 ---
 
@@ -304,15 +329,19 @@ modules/orders/
 │   └── get-customer-overview.input.ts
 │
 ├── domain/
-│   ├── order.ts
-│   └── order.errors.ts
+│   ├── enums/order-status.enum.ts        # OrderStatus (CRM choice values)
+│   ├── enums/order-error-code.enum.ts
+│   ├── models/order.model.ts
+│   ├── models/order.props.ts
+│   └── errors/order.errors.ts
 │
 └── repositories/
     ├── order.repository.ts
     └── dataverse/
         ├── dataverse-order.repository.ts
-        ├── order.table.ts                # OrderTableRow (read) + OrderTableWriteRow (@odata.bind)
-        └── order.table-mapper.ts         # choices ↔ status, lookup ↔ customerId
+        ├── order.table-mapper.ts         # choice → OrderStatus (optionSetValue), lookup ↔ customerId
+        ├── tables/order.table.ts         # OrderTableRow (read) + OrderTableWriteRow (@odata.bind)
+        └── queries/order.query.ts        # ORDER_COLUMNS
 ```
 
 Rules:
@@ -337,8 +366,9 @@ modules/countries/
     ├── country.repository.ts
     └── dataverse/
         ├── dataverse-country.repository.ts
-        ├── country.table.ts
-        └── country.table-mapper.ts
+        ├── country.table-mapper.ts
+        ├── tables/country.table.ts
+        └── queries/country.query.ts
 ```
 
 ---
@@ -359,12 +389,14 @@ modules/customers/repositories/
 ├── customer.repository.ts                # unchanged
 ├── dataverse/                            # old (removed after the cut-over)
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table.ts                 # CUSTOMER_TABLE = 'contacts'
-│   └── customer.table-mapper.ts
+│   ├── customer.table-mapper.ts
+│   ├── tables/customer.table.ts          # CUSTOMER_TABLE = 'contacts'
+│   └── queries/customer.query.ts
 └── postgres/                             # new
     ├── postgres-customer.repository.ts
-    ├── customer.table.ts                 # CUSTOMER_TABLE = 'customers'
-    └── customer.table-mapper.ts
+    ├── customer.table-mapper.ts
+    ├── tables/customer.table.ts          # CUSTOMER_TABLE = 'customers'
+    └── queries/customer.query.ts
 ```
 
 The change in `customers.module.ts` is one line:
@@ -379,7 +411,8 @@ The change in `customers.module.ts` is one line:
 
 ```text
 modules/customers/
-├── domain/customer.spec.ts                                  # rules
+├── domain/models/customer.model.spec.ts                     # model rules
+├── domain/rules/<rule>.spec.ts                              # pure rules across models
 ├── services/create-customer.service.spec.ts                 # with an in-memory fake repository
 ├── repositories/customer.repository.contract.ts             # shared tests for every implementation
 └── repositories/dataverse/customer.table-mapper.spec.ts     # JSON → Domain
@@ -396,7 +429,9 @@ test/
 | --- | --- | --- |
 | `schema` | Zod validation only (in `dto/`) | `createCustomerSchema` |
 | `Dto` | HTTP shapes only | `CreateCustomerDto`, `CustomerResponseDto` |
-| `table` | the storage table | `customer.table.ts`, `CustomerTableRow` |
+| `table` | the storage table (what it returns) | `tables/customer.table.ts`, `CustomerTableRow` |
+| `query` | what we ask the storage for | `queries/customer.query.ts`, `CUSTOMER_COLUMNS` |
+| `enum` | a fixed value set: CRM option set (CRM values) or error codes | `CustomerStatus`, `CustomerErrorCode` |
 | `TableMapper` | Table ↔ Domain | `CustomerTableMapper` |
 | `ResponseMapper` | Domain → Response DTO | `CustomerResponseMapper` |
 | `Service` | one operation | `CreateCustomerService` |
@@ -407,7 +442,7 @@ test/
 
 | Folder | Contains | Never contains |
 | --- | --- | --- |
-| `domain/` | business rules | NestJS, Zod, Dataverse |
+| `domain/` | `enums/`, `models/`, `errors/`, `rules/`: business rules, one type per file | NestJS, Zod, Dataverse, bare option-set numbers or code strings |
 | `services/` | `*.service.ts` (one operation) + `*.input.ts` (its Input type) | HTTP, DTOs, Dataverse column names |
 | `repositories/<entity>.repository.ts` | abstract class with domain types | OData, SQL |
 | `repositories/dataverse/` | Dataverse names, OData, table mapping | HTTP |

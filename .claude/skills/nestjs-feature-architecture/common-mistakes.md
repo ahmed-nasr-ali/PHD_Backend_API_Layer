@@ -8,7 +8,7 @@
 | 4 | `return customer` (domain object) from a controller | leaks internals; getters aren't serialised; the API changes silently | `return CustomerResponseMapper.toResponse(customer)` |
 | 5 | `@Inject('CustomerRepository')` string tokens | typo-prone, unchecked | abstract class token |
 | 6 | `repository.create(input)` with a service Input | the repository depends on the service's input shape | `repository.create(customer)` with a domain object |
-| 7 | `CustomerTableRow` / `statecode` / `100000001` outside `repositories/dataverse/` | CRM details leak; migration touches everything | map to domain values in `CustomerTableMapper` |
+| 7 | `CustomerTableRow` outside `repositories/dataverse/`, or a bare option-set number (`=== 3`, `100000001`) anywhere | CRM details leak; unreadable rules | row types stay in `repositories/dataverse/tables/`; option sets are enums in `domain/enums/` (CRM values) compared by member, mapped with `optionSetValue` in the table-mapper |
 | 8 | A `CustomersService` with 15 methods | god class; unclear dependencies | one `<Verb><Entity>Service` per operation |
 | 9 | Sequential `await` for independent remote reads | latencies add up (each Dataverse call is an HTTPS round trip) | `Promise.all` |
 | 10 | `Customer.create()` used when loading from storage | existing CRM data that breaks a rule makes reads throw | `Customer.restore()` |
@@ -19,4 +19,6 @@
 | 15 | Interfaces for every class "for testability" | noise | abstract only repositories; test services with in-memory repository fakes |
 | 16 | `@Req() req` + `req.user.id` in controllers | untyped; couples to Express | typed `@CurrentUser()` param decorator |
 | 17 | A service calling another service | hidden coupling, unclear transactions | share logic via `domain/` or a repository method |
-| 18 | The word "schema" used for the Dataverse table | clashes with Zod schemas in `dto/` | `<entity>.table.ts` / `CustomerTableRow` |
+| 18 | The word "schema" used for the Dataverse table | clashes with Zod schemas in `dto/` | `tables/<entity>.table.ts` / `CustomerTableRow` |
+| 19 | `super('…', 'CUSTOMER_NOT_FOUND')` with a hand-typed code | typos change the API contract silently | code from the feature enum: `CustomerErrorCode.NotFound` |
+| 20 | One `domain/customer.ts` holding enums, props and the class | grows into a god file; unclear imports | `domain/enums/`, `domain/models/` (`.model.ts` + `.props.ts`), `domain/errors/`, `domain/rules/`, one type per file |

@@ -12,7 +12,7 @@ flowchart TB
     S3 --> S4["④ CreateCustomerService.execute"]
     S4 --> S5["⑤ Customer.create<br/>rules + new id"]
     S5 --> S6["⑥ CustomerRepository.findByEmail<br/>abstract"]
-    S6 --> S7["⑦ DataverseCustomerRepository<br/>customer.table: contacts + columns"]
+    S6 --> S7["⑦ DataverseCustomerRepository<br/>tables/: contacts · queries/: columns"]
     S7 --> S8["⑧ DataverseClient<br/>GET contacts"]
     S8 --> DV1[("Dataverse")]
     DV1 --> S9{"⑨ CustomerTableMapper.toDomain<br/>row found?"}
@@ -189,9 +189,9 @@ async execute(input: CreateCustomerInput): Promise<Customer> {
   return customer;                                                             // ⑬
 }
 
-// ── domain/customer.ts (inside class Customer) ──────────────────── ⑤
+// ── domain/models/customer.model.ts (inside class Customer) ─────── ⑤
 static create(props: NewCustomerProps, today: Date): Customer {
-  const customer = new Customer({ ...props, email: props.email.trim().toLowerCase(), status: 'active' });
+  const customer = new Customer({ ...props, email: props.email.trim().toLowerCase(), status: CustomerStatus.Active });
   if (!customer.isAdultOn(today)) {
     throw new CustomerMustBeAdultError();                                      // kind: RuleViolation
   }
@@ -208,19 +208,25 @@ isAdultOn(date: Date): boolean {
   return eighteenthBirthday <= date;
 }
 
-// ── domain/customer.errors.ts ───────────────────────────────────── ⑤ ⑨
+// ── domain/enums/customer-error-code.enum.ts ────────────────────── ⑤ ⑨
+export enum CustomerErrorCode {
+  MustBeAdult = 'CUSTOMER_MUST_BE_ADULT',
+  EmailAlreadyInUse = 'EMAIL_ALREADY_IN_USE',
+}
+
+// ── domain/errors/customer.errors.ts ────────────────────────────── ⑤ ⑨
 // No HTTP here: only a kind + code. Each caller decides what to do with it.
 export class CustomerMustBeAdultError extends BusinessError {
   readonly kind = BusinessErrorKind.RuleViolation;
   constructor() {
-    super('Customer must be at least 18 years old', 'CUSTOMER_MUST_BE_ADULT');
+    super('Customer must be at least 18 years old', CustomerErrorCode.MustBeAdult);
   }
 }
 
 export class EmailAlreadyInUseError extends BusinessError {
   readonly kind = BusinessErrorKind.Conflict;
   constructor(email: string) {
-    super(`Email ${email} is already in use`, 'EMAIL_ALREADY_IN_USE');
+    super(`Email ${email} is already in use`, CustomerErrorCode.EmailAlreadyInUse);
   }
 }
 
@@ -233,8 +239,8 @@ export abstract class CustomerRepository {
 // ── repositories/dataverse/dataverse-customer.repository.ts ─────── ⑦ ⑧ ⑨ ⑪ ⑫
 async findByEmail(email: string): Promise<Customer | null> {
   const [row] = await this.dataverse.retrieveMultiple<CustomerTableRow>( // ⑧ GET contacts
-    CUSTOMER_TABLE,                                                      // ⑦ from customer.table.ts
-    { select: CUSTOMER_TABLE_COLUMNS, filter: `emailaddress1 eq ${odataString(email)}`, top: 1 },
+    CUSTOMER_TABLE,                                                      // ⑦ from tables/customer.table.ts
+    { select: CUSTOMER_COLUMNS, filter: `emailaddress1 eq ${odataString(email)}`, top: 1 }, // ⑦ queries/customer.query.ts
   );
   return row ? CustomerTableMapper.toDomain(row) : null;                 // ⑨
 }
