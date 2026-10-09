@@ -1,5 +1,5 @@
 import { Invitation } from '../domain/models/invitation.model';
-import { InvitationCheckResponseDto } from '../dto/invitation-check-response.dto';
+import { InvitationCheckResponseDto } from '../dto/responses/invitation-check-response.dto';
 
 /** Translates a checked invitation into the `check-code` response. */
 export class InvitationCheckResponseMapper {

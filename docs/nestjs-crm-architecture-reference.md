@@ -43,7 +43,7 @@ src/
 └── modules/customers/
     ├── customers.module.ts
     ├── controllers/customers.controller.ts
-    ├── dto/                              create-customer.dto.ts, customer-id.dto.ts, customer-response.dto.ts
+    ├── dto/                              requests/ (create-customer.dto.ts, customer-id.dto.ts, fields/) · responses/ (customer-response.dto.ts)
     ├── mappers/                          customer-response.mapper.ts
     ├── services/                         create-customer.service.ts + create-customer.input.ts, get-customer.service.ts, ...
     ├── domain/                           enums/ (one enum per file; an entity's Status + State share one file) · models/ (customer.model.ts, customer.props.ts) · errors/ (customer.errors.ts) · rules/
@@ -69,9 +69,9 @@ Features without business rules may omit `domain/`.
 | Service input | `services/<verb>-<entity>.input.ts` (next to its service) | `CreateCustomerInput` |
 | Strategy (operation with a flow per type) | `services/<operation>/strategies/<type>/<type>-<operation>.strategy.ts` (+ `<type>-<verb>.input.ts`) | `OwnerRegistrationStrategy`, `OwnerRegisterInput` |
 | Strategy contract + factory | `services/<operation>/strategies/<operation>.strategy.ts`, `<operation>-strategy.factory.ts` | `RegistrationStrategy`, `RegistrationStrategyFactory` |
-| Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
-| Param DTO | `dto/<entity>-id.dto.ts` | `customerIdSchema` |
-| Response DTO | `dto/<entity>-response.dto.ts` | `CustomerResponseDto` |
+| Request DTO | `dto/requests/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
+| Param DTO | `dto/requests/<entity>-id.dto.ts` | `customerIdSchema` |
+| Response DTO | `dto/responses/<entity>-response.dto.ts` | `CustomerResponseDto` |
 | Response mapper | `mappers/<entity>-response.mapper.ts` | `CustomerResponseMapper` |
 | Repository (abstract) | `repositories/<entity>.repository.ts` | `CustomerRepository` |
 | Repository (Dataverse) | `repositories/dataverse/dataverse-<entity>.repository.ts` | `DataverseCustomerRepository` |
@@ -232,7 +232,7 @@ Not covered by the abstraction (plan explicitly): data migration and/or sync, lo
 | --- | --- |
 | Dataverse column renamed | `tables/<entity>.table.ts` + `queries/<entity>.query.ts` + `mappers/<entity>.table-mapper.ts` |
 | Dataverse auth / URL / retry | `core/dataverse` |
-| Frontend wants a new response shape | `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
-| Request shape changes | `dto/<verb>-<entity>.dto.ts` + controller input building |
+| Frontend wants a new response shape | `dto/responses/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
+| Request shape changes | `dto/requests/<verb>-<entity>.dto.ts` + controller input building |
 | Business rule changes | `domain/` or `services/` |
 | Storage technology changes | new `repositories/<tech>/` + module provider line + data migration |

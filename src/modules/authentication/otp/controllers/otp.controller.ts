@@ -1,11 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { zodBody } from '../../../../core/validation/presets';
-import type { ResendOtpDto } from '../dto/resend-otp.dto';
-import { resendOtpSchema } from '../dto/resend-otp.dto';
-import { ResendOtpResponseDto } from '../dto/resend-otp-response.dto';
-import type { VerifyOtpDto } from '../dto/verify-otp.dto';
-import { verifyOtpSchema } from '../dto/verify-otp.dto';
-import { VerifyOtpResponseDto } from '../dto/verify-otp-response.dto';
+import type { ResendOtpDto } from '../dto/requests/resend-otp.dto';
+import { resendOtpSchema } from '../dto/requests/resend-otp.dto';
+import { ResendOtpResponseDto } from '../dto/responses/resend-otp-response.dto';
+import type { VerifyOtpDto } from '../dto/requests/verify-otp.dto';
+import { verifyOtpSchema } from '../dto/requests/verify-otp.dto';
+import { VerifyOtpResponseDto } from '../dto/responses/verify-otp-response.dto';
 import { ResendOtpResponseMapper } from '../mappers/resend-otp-response.mapper';
 import { VerifyOtpResponseMapper } from '../mappers/verify-otp-response.mapper';
 import { ResendOtpService } from '../services/resend-otp.service';

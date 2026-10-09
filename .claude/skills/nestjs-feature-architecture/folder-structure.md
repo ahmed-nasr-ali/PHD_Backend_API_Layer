@@ -16,9 +16,12 @@ src/
         ├── controllers/
         │   └── customers.controller.ts           one endpoint → one service
         ├── dto/
-        │   ├── create-customer.dto.ts            Zod schema + CreateCustomerDto type
-        │   ├── customer-id.dto.ts                Zod schema for the :id param
-        │   └── customer-response.dto.ts          CustomerResponseDto (JSON shape)
+        │   ├── requests/                         what the client sends: Zod schemas
+        │   │   ├── fields/                       one reusable field schema per file (email.schema.ts, …)
+        │   │   ├── create-customer.dto.ts        Zod schema + CreateCustomerDto type
+        │   │   └── customer-id.dto.ts            Zod schema for the :id param
+        │   └── responses/                        what we send back: plain types, no Zod
+        │       └── customer-response.dto.ts      CustomerResponseDto (JSON shape)
         ├── mappers/
         │   └── customer-response.mapper.ts       Domain → CustomerResponseDto
         ├── services/                             one class per operation
@@ -124,9 +127,10 @@ modules/authentication/
 | Strategy input | `services/<operation>/strategies/<type>/<type>-<verb>.input.ts` | `OwnerRegisterInput` |
 | Strategy contract + factory | `services/<operation>/strategies/<operation>.strategy.ts`, `<operation>-strategy.factory.ts` | `RegistrationStrategy`, `RegistrationStrategyFactory` |
 | Helper shared by strategies | `services/<operation>/<role>.ts` | `UserRegistrar`, `RegistrationInvitationVerifier` |
-| Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
-| Param DTO | `dto/<entity>-id.dto.ts` | `customerIdSchema` |
-| Response DTO | `dto/<entity>-response.dto.ts` | `CustomerResponseDto` |
+| Request DTO | `dto/requests/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
+| Request field schema | `dto/requests/fields/<field>.schema.ts` | `emailSchema` |
+| Param DTO | `dto/requests/<entity>-id.dto.ts` | `customerIdSchema` |
+| Response DTO | `dto/responses/<entity>-response.dto.ts` | `CustomerResponseDto` |
 | Response mapper | `mappers/<entity>-response.mapper.ts` | `CustomerResponseMapper` |
 | Repository (port) | `repositories/<entity>.repository.ts` | `CustomerRepository` |
 | Repository (impl) | `repositories/dataverse/dataverse-<entity>.repository.ts` | `DataverseCustomerRepository` |
@@ -147,5 +151,6 @@ modules/authentication/
 - A feature without business rules may omit `domain/`.
 - One type per file inside `domain/`: each enum, model and props type has its own file.
 - Error codes and CRM option-set values are always enum members (`InvitedAs.Helpers`), never bare strings or numbers.
+- `dto/` is always split: `requests/` (Zod schemas, `fields/` inside it) and `responses/` (plain types). A Zod import in `responses/` or a hand-written type in `requests/` is in the wrong folder.
 - `tables/` describes what Dataverse returns; `queries/` describes what we ask for; `mappers/` translates rows to the domain and back. "schema" is never used for them: it stays reserved for Zod in `dto/`.
 - `repositories/dataverse/mappers/` (table-mappers) and the module's top-level `mappers/` (response mappers) are different layers; the file suffix tells them apart (`.table-mapper.ts` vs `-response.mapper.ts`).

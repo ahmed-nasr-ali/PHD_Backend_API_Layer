@@ -106,7 +106,7 @@ Every strategy, the factory and every helper are providers of the feature module
 ## Adding a type
 
 1. `strategies/<type>/<type>-register.input.ts` and add it to the union in `register.input.ts`.
-2. The Zod schema in `dto/register/` and add it to the `discriminatedUnion`.
+2. The Zod schema in `dto/requests/register/` and add it to the `discriminatedUnion`.
 3. `strategies/<type>/<type>-registration.strategy.ts`.
 4. One line in the factory (`tsc` fails until you add it) and one provider in the module.
 

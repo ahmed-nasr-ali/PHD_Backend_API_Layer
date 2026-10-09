@@ -1,6 +1,6 @@
-import { IdentityKind } from '../domain/enums/identity-kind.enum';
-import { RegisteredAs } from '../../shared/domain/enums/registered-as.enum';
-import { UserStatus } from '../../shared/domain/enums/user-status.enum';
+import { IdentityKind } from '../../domain/enums/identity-kind.enum';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
+import { UserStatus } from '../../../shared/domain/enums/user-status.enum';
 
 /**
  * The JSON returned by `POST /auth/register`: the user as the CRM saved it.

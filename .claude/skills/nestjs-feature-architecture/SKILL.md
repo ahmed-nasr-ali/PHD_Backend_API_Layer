@@ -32,7 +32,7 @@ Related skills: `request-validation-and-dtos` (dto/, controllers/, mappers/), `d
 customers/
 ├── customers.module.ts
 ├── controllers/          HTTP endpoints
-├── dto/                  Zod request schemas + response DTO types
+├── dto/                  requests/ (Zod schemas + fields/) · responses/ (response DTO types)
 ├── mappers/              Domain → Response DTO
 ├── services/             one class per operation (use case)
 ├── domain/               enums/ · models/ · errors/ · rules/ (one type per file)

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { invitationCodeSchema } from '../../../../invitations/dto/fields/invitation-code.schema';
-import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
+import { invitationCodeSchema } from '../../../../../invitations/dto/requests/fields/invitation-code.schema';
+import { RegisteredAs } from '../../../../shared/domain/enums/registered-as.enum';
 import { emailSchema } from '../fields/email.schema';
 import { identitySchema } from '../fields/identity.schema';
 import { invitationIdSchema } from '../fields/invitation-id.schema';

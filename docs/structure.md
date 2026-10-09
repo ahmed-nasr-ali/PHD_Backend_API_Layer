@@ -30,8 +30,8 @@ src/
     │                                              ③ DTO → Input
     │                                              ⑮ returns 201
     ├── dto/
-    │   ├── create-customer.dto.ts                 ② createCustomerSchema + CreateCustomerDto
-    │   └── customer-response.dto.ts               ⑭ CustomerResponseDto
+    │   ├── requests/create-customer.dto.ts        ② createCustomerSchema + CreateCustomerDto
+    │   └── responses/customer-response.dto.ts     ⑭ CustomerResponseDto
     ├── services/
     │   ├── create-customer.input.ts               ③ CreateCustomerInput
     │   └── create-customer.service.ts             ④ execute()
@@ -95,7 +95,7 @@ async create(
   return CustomerResponseMapper.toResponse(customer);           // ⑭ → ⑮ 201
 }
 
-// ── dto/create-customer.dto.ts ──────────────────────────────────── ②
+// ── dto/requests/create-customer.dto.ts ─────────────────────────── ②
 export const createCustomerSchema = z.object({
   firstName: z.string().trim().min(1).max(50),
   lastName: z.string().trim().min(1).max(50),
@@ -258,10 +258,13 @@ modules/customers/
 │   └── customers.controller.ts           # one endpoint → one service
 │
 ├── dto/
-│   ├── create-customer.dto.ts            # Zod schema + CreateCustomerDto type
-│   ├── update-customer.dto.ts
-│   ├── customer-id.dto.ts                # Zod schema for the :id param
-│   └── customer-response.dto.ts          # CustomerResponseDto (the JSON shape)
+│   ├── requests/                         # what the client sends: Zod schemas
+│   │   ├── fields/                       # one reusable field schema per file
+│   │   ├── create-customer.dto.ts        # Zod schema + CreateCustomerDto type
+│   │   ├── update-customer.dto.ts
+│   │   └── customer-id.dto.ts            # Zod schema for the :id param
+│   └── responses/                        # what we send back: plain types, no Zod
+│       └── customer-response.dto.ts      # CustomerResponseDto (the JSON shape)
 │
 ├── mappers/
 │   └── customer-response.mapper.ts       # Domain → CustomerResponseDto
@@ -315,9 +318,10 @@ modules/orders/
 │   └── customer-overview.controller.ts   # GET /customers/:id/overview
 │
 ├── dto/
-│   ├── place-order.dto.ts
-│   ├── order-response.dto.ts
-│   └── customer-overview-response.dto.ts
+│   ├── requests/place-order.dto.ts
+│   └── responses/
+│       ├── order-response.dto.ts
+│       └── customer-overview-response.dto.ts
 │
 ├── mappers/
 │   ├── order-response.mapper.ts
@@ -360,7 +364,7 @@ There are no rules, so there is no `domain/` folder.
 modules/countries/
 ├── countries.module.ts
 ├── controllers/countries.controller.ts
-├── dto/country-response.dto.ts
+├── dto/responses/country-response.dto.ts
 ├── mappers/country-response.mapper.ts
 ├── services/list-countries.service.ts
 └── repositories/

@@ -1,5 +1,5 @@
 import { User } from '../domain/models/user.model';
-import { RegisterResponseDto } from '../dto/register-response.dto';
+import { RegisterResponseDto } from '../dto/responses/register-response.dto';
 
 /** Translates the saved user into the `register` response. */
 export class RegisterResponseMapper {

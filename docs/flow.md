@@ -159,7 +159,7 @@ async create(
   return CustomerResponseMapper.toResponse(customer);           // ⑭ → ⑮ 201
 }
 
-// ── dto/create-customer.dto.ts ──────────────────────────────────── ②
+// ── dto/requests/create-customer.dto.ts ─────────────────────────── ②
 export const createCustomerSchema = z.object({
   firstName: z.string().trim().min(1).max(50),
   lastName: z.string().trim().min(1).max(50),

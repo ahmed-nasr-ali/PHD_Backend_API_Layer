@@ -279,7 +279,7 @@ The repository translates the constraint violation into the same `EmailAlreadyIn
 The project already provides pipes in [`src/core/validation/presets/zod.presets.ts`](../src/core/validation/presets/zod.presets.ts):
 
 ```ts
-// dto/create-customer.dto.ts
+// dto/requests/create-customer.dto.ts
 import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
@@ -293,7 +293,7 @@ export type CreateCustomerDto = z.infer<typeof createCustomerSchema>;
 ```
 
 ```ts
-// dto/customer-id.dto.ts
+// dto/requests/customer-id.dto.ts
 import { z } from 'zod';
 
 /** Dataverse ids are GUIDs; z.guid() accepts any 8-4-4-4-12 hex id, z.uuid() is stricter. */
@@ -321,7 +321,7 @@ Details that matter:
 - **Zod 4 syntax:** `z.email()`, `z.iso.date()`, `z.guid()` are top-level in Zod 4 (the notes' `z.email()` is correct for Zod 4).
 - **Use `z.guid()` for Dataverse ids**, not `z.uuid()`. `z.uuid()` enforces RFC variant bits, and you should not assume every Dataverse key satisfies them.
 - **Query strings are strings:** use `z.coerce.number()` for numeric query params.
-- **`import type` for inferred types in decorated parameters.** This repo compiles with `isolatedModules` + `emitDecoratorMetadata`, so `import { CreateCustomerDto }` used in a decorated parameter fails with TS1272. Use `import type { CreateCustomerDto } from '../dto/create-customer.dto'`. Since `tsc` reports it, it can't slip through. Don't add a lint auto-fix for type imports: it can't see decorator metadata and may turn DI imports into `import type`, breaking injection.
+- **`import type` for inferred types in decorated parameters.** This repo compiles with `isolatedModules` + `emitDecoratorMetadata`, so `import { CreateCustomerDto }` used in a decorated parameter fails with TS1272. Use `import type { CreateCustomerDto } from '../dto/requests/create-customer.dto'`. Since `tsc` reports it, it can't slip through. Don't add a lint auto-fix for type imports: it can't see decorator metadata and may turn DI imports into `import type`, breaking injection.
 
 #### `@Body({ schema })` vs `zodBody(schema)`
 
@@ -346,10 +346,10 @@ The notes' definition is correct: **a DTO is a dumb container for moving data ac
 
 | Shape | Boundary | Defined in | Example |
 | --- | --- | --- | --- |
-| **Request DTO** | HTTP → app | `dto/create-customer.dto.ts` | `createCustomerSchema` + `CreateCustomerDto` (Zod-inferred) |
+| **Request DTO** | HTTP → app | `dto/requests/create-customer.dto.ts` | `createCustomerSchema` + `CreateCustomerDto` (Zod-inferred) |
 | **Input** | caller → service | `services/create-customer.input.ts`, next to its service | `CreateCustomerInput` |
 | **Result** | service → caller | the service file (only when it isn't a domain object) | `Customer`, or `CustomerOverview { customer, recentOrders }` |
-| **Response DTO** | app → HTTP | `dto/customer-response.dto.ts` | `CustomerResponseDto` |
+| **Response DTO** | app → HTTP | `dto/responses/customer-response.dto.ts` | `CustomerResponseDto` |
 | **Table row** | Dataverse/DB ↔ repository | `repositories/dataverse/customer.table.ts` | `CustomerTableRow` |
 
 ### Why separate the HTTP DTO from the service Input? (corrected reasoning)
@@ -410,10 +410,10 @@ It never calls repositories, never contains business `if`s and never sees Datave
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { zodBody, zodParam } from '../../../core/validation/presets';
-import type { CreateCustomerDto } from '../dto/create-customer.dto';
-import { createCustomerSchema } from '../dto/create-customer.dto';
-import { customerIdSchema } from '../dto/customer-id.dto';
-import { CustomerResponseDto } from '../dto/customer-response.dto';
+import type { CreateCustomerDto } from '../dto/requests/create-customer.dto';
+import { createCustomerSchema } from '../dto/requests/create-customer.dto';
+import { customerIdSchema } from '../dto/requests/customer-id.dto';
+import { CustomerResponseDto } from '../dto/responses/customer-response.dto';
 import { CustomerResponseMapper } from '../mappers/customer-response.mapper';
 import { CreateCustomerService } from '../services/create-customer.service';
 import { GetCustomerService } from '../services/get-customer.service';
@@ -453,8 +453,8 @@ export class CustomersController {
 The **response DTO** is the shape of the JSON (a type, no logic). The **response mapper** is the function that builds it from the domain. The DTO is the form; the mapper is who fills it in.
 
 ```ts
-// dto/customer-response.dto.ts
-import { CustomerStatus } from '../domain/enums/customer-status.enum';
+// dto/responses/customer-response.dto.ts
+import { CustomerStatus } from '../../domain/enums/customer-status.enum';
 
 /** The JSON shape returned to API clients. Option sets go out as their CRM numbers. */
 export interface CustomerResponseDto {
@@ -468,7 +468,7 @@ export interface CustomerResponseDto {
 ```ts
 // mappers/customer-response.mapper.ts
 import { Customer } from '../domain/models/customer.model';
-import { CustomerResponseDto } from '../dto/customer-response.dto';
+import { CustomerResponseDto } from '../dto/responses/customer-response.dto';
 
 /** Translates the Customer domain model into the API response. */
 export class CustomerResponseMapper {
@@ -1690,9 +1690,11 @@ src/
     │   ├── controllers/
     │   │   └── customers.controller.ts           # one endpoint → one service
     │   ├── dto/
-    │   │   ├── create-customer.dto.ts            # Zod schema + CreateCustomerDto
-    │   │   ├── customer-id.dto.ts                # Zod schema for :id
-    │   │   └── customer-response.dto.ts          # CustomerResponseDto (JSON shape)
+    │   │   ├── requests/                         # what the client sends: Zod schemas (+ fields/)
+    │   │   │   ├── create-customer.dto.ts        # Zod schema + CreateCustomerDto
+    │   │   │   └── customer-id.dto.ts            # Zod schema for :id
+    │   │   └── responses/                        # what we send back: plain types, no Zod
+    │   │       └── customer-response.dto.ts      # CustomerResponseDto (JSON shape)
     │   ├── mappers/
     │   │   └── customer-response.mapper.ts       # Domain → CustomerResponseDto
     │   ├── services/

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IdentityKind } from '../../domain/enums/identity-kind.enum';
+import { IdentityKind } from '../../../domain/enums/identity-kind.enum';
 import { nationalIdSchema } from './national-id.schema';
 import { passportSchema } from './passport.schema';
 

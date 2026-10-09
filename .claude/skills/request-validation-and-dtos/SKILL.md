@@ -38,7 +38,7 @@ A validation failure returns the error envelope with `code: "VALIDATION_FAILED"`
 
 | Kind | Question | Where |
 | --- | --- | --- |
-| Request validation | Is the request well-formed? | Zod schema in `dto/<verb>-<entity>.dto.ts` |
+| Request validation | Is the request well-formed? | Zod schema in `dto/requests/<verb>-<entity>.dto.ts` |
 | Intrinsic business rule | Is this valid for the business, regardless of other data? | `domain/` model (`create()` / methods) |
 | Contextual business rule | Does it need stored data or the caller? (unique, exists, belongs to tenant, state allows) | `services/`, via repositories |
 | Storage constraint | Guarantee under concurrency | Dataverse alternate key / SQL `UNIQUE`, translated by the repository |
@@ -55,9 +55,9 @@ HTTP JSON ◄── CustomerResponseDto ◄── CustomerResponseMapper ◄─�
 
 | Shape | What it is | File |
 | --- | --- | --- |
-| Request DTO | Zod schema + inferred type: what the client sends | `dto/create-customer.dto.ts` |
+| Request DTO | Zod schema + inferred type: what the client sends | `dto/requests/create-customer.dto.ts` |
 | Input | what the service needs (body + params + current user, real types) | `services/create-customer.input.ts` (next to its service) |
-| Response DTO | type of the JSON returned to the client (shape only, no logic) | `dto/customer-response.dto.ts` |
+| Response DTO | type of the JSON returned to the client (shape only, no logic) | `dto/responses/customer-response.dto.ts` |
 | Response mapper | function: domain → response DTO | `mappers/customer-response.mapper.ts` |
 
 Why the Input is separate from the request DTO (even with Zod): services must not import `dto/`; the public API and the internal input evolve independently (string date vs `Date`); and inputs combine body + params + authenticated user.
@@ -67,7 +67,7 @@ Response DTO vs response mapper: the DTO is the **form**, the mapper is **who fi
 ## Example
 
 ```ts
-// dto/create-customer.dto.ts
+// dto/requests/create-customer.dto.ts
 import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
@@ -81,7 +81,7 @@ export type CreateCustomerDto = z.infer<typeof createCustomerSchema>;
 ```
 
 ```ts
-// dto/customer-id.dto.ts
+// dto/requests/customer-id.dto.ts
 import { z } from 'zod';
 
 /** Dataverse ids are GUIDs; z.guid() accepts any 8-4-4-4-12 hex id, z.uuid() is stricter. */
@@ -89,8 +89,8 @@ export const customerIdSchema = z.guid();
 ```
 
 ```ts
-// dto/customer-response.dto.ts
-import { CustomerStatus } from '../domain/enums/customer-status.enum';
+// dto/responses/customer-response.dto.ts
+import { CustomerStatus } from '../../domain/enums/customer-status.enum';
 
 /** The JSON shape returned to API clients. Option sets go out as their CRM numbers. */
 export interface CustomerResponseDto {
@@ -104,7 +104,7 @@ export interface CustomerResponseDto {
 ```ts
 // mappers/customer-response.mapper.ts
 import { Customer } from '../domain/models/customer.model';
-import { CustomerResponseDto } from '../dto/customer-response.dto';
+import { CustomerResponseDto } from '../dto/responses/customer-response.dto';
 
 /** Translates the Customer domain model into the API response. */
 export class CustomerResponseMapper {
@@ -123,10 +123,10 @@ export class CustomerResponseMapper {
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { zodBody, zodParam } from '../../../core/validation/presets';
-import type { CreateCustomerDto } from '../dto/create-customer.dto';
-import { createCustomerSchema } from '../dto/create-customer.dto';
-import { customerIdSchema } from '../dto/customer-id.dto';
-import { CustomerResponseDto } from '../dto/customer-response.dto';
+import type { CreateCustomerDto } from '../dto/requests/create-customer.dto';
+import { createCustomerSchema } from '../dto/requests/create-customer.dto';
+import { customerIdSchema } from '../dto/requests/customer-id.dto';
+import { CustomerResponseDto } from '../dto/responses/customer-response.dto';
 import { CustomerResponseMapper } from '../mappers/customer-response.mapper';
 import { CreateCustomerService } from '../services/create-customer.service';
 import { GetCustomerService } from '../services/get-customer.service';
@@ -166,7 +166,7 @@ export class CustomersController {
 When one endpoint accepts different fields per kind of caller (register: six user types), the body is a union picked by one field:
 
 ```text
-dto/
+dto/requests/
 ├── fields/<field>.schema.ts            one Zod schema per field (name, email, birthDate, …), reused by every shape
 ├── register/<type>-register.dto.ts     one z.strictObject per type: type: z.literal(RegisteredAs.Owner), …
 └── register.dto.ts                     registerSchema = z.discriminatedUnion('type', [...]) + RegisterDto
@@ -232,7 +232,7 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 | Returning the domain object or Result from the controller | response mapper |
 | Logic inside a response DTO | DTOs are types only; logic goes in the mapper |
 | A top-level `inputs/` folder, or a mapper class that copies request fields | `services/<verb>-<entity>.input.ts` next to its service; build it inline in the controller |
-| Response shape changes edited in the domain | edit only `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
+| Response shape changes edited in the domain | edit only `dto/responses/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
 | Controller returns `{ success: true, data: … }` itself | return the response DTO; `ResponseInterceptor` wraps it |
 | `zodQuery` on a route param | `zodParam` (same 400 behaviour, clearer intent) |
 | A union body passed to the service as its DTO type | Input per shape + union Input; `const input: XInput = dto` in the controller |
@@ -241,7 +241,7 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 
 ## Decision rules
 
-- Format, type, length, range, enum → Zod in `dto/`.
+- Format, type, length, range, enum → Zod in `dto/requests/`.
 - Intrinsic business invariant → `domain/` (may *also* be in Zod for a friendlier message).
 - Needs stored data or the caller → `services/`.
 - Must hold under concurrency → storage constraint + repository translation.
@@ -249,11 +249,11 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 
 ## Practical checklist
 
-- [ ] Request schema in `dto/<verb>-<entity>.dto.ts`, with the `z.infer` type exported as `<Verb><Entity>Dto`
+- [ ] Request schema in `dto/requests/<verb>-<entity>.dto.ts` (reusable fields in `dto/requests/fields/`), with the `z.infer` type exported as `<Verb><Entity>Dto`
 - [ ] Body: `zodBody`; query: `zodQuery`; params: `zodParam`; ids: `z.guid()`
 - [ ] String limits match the Dataverse columns (read from the metadata, column named in the comment)
 - [ ] Several body shapes: `z.discriminatedUnion` of `z.strictObject`s; one Input per shape; values turned into real types in the schema
 - [ ] Inferred types imported with `import type` in controllers
 - [ ] Controller builds the Input (body + params + user) and calls one service
-- [ ] Response type in `dto/<entity>-response.dto.ts`; mapping in `mappers/<entity>-response.mapper.ts`
+- [ ] Response type in `dto/responses/<entity>-response.dto.ts` (plain type, no Zod); mapping in `mappers/<entity>-response.mapper.ts`
 - [ ] No business lookups in DTO schemas

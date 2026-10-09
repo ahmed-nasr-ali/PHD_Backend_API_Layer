@@ -1,8 +1,8 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { zodBody } from '../../../core/validation/presets';
-import type { CheckInvitationCodeDto } from '../dto/check-invitation-code.dto';
-import { checkInvitationCodeSchema } from '../dto/check-invitation-code.dto';
-import { InvitationCheckResponseDto } from '../dto/invitation-check-response.dto';
+import type { CheckInvitationCodeDto } from '../dto/requests/check-invitation-code.dto';
+import { checkInvitationCodeSchema } from '../dto/requests/check-invitation-code.dto';
+import { InvitationCheckResponseDto } from '../dto/responses/invitation-check-response.dto';
 import { InvitationCheckResponseMapper } from '../mappers/invitation-check-response.mapper';
 import { CheckInvitationCodeService } from '../services/check-invitation-code.service';
 

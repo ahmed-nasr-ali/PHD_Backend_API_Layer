@@ -1,5 +1,5 @@
-import { InvitedAs } from '../domain/enums/invited-as.enum';
-import { Relationship } from '../domain/enums/relationship.enum';
+import { InvitedAs } from '../../domain/enums/invited-as.enum';
+import { Relationship } from '../../domain/enums/relationship.enum';
 
 /** The JSON returned by `POST /invitations/check-code`. Numbers are the CRM option-set values. */
 export interface InvitationCheckResponseDto {
