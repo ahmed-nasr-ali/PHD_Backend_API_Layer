@@ -314,9 +314,15 @@ A user verified, closed the app before the selfie, and registers again. Needs yo
 
 **Check:** `com_mobileverified = true`.
 
-### 5.3 Expiry set on create (still open in O7)
+### 5.3 Expiry set on create (O7)
 
-Run `REGISTER_TEST_CASES.md` 4.1 with a **new** mobile + national ID: `com_otpexpirydate` must be `createdon` + 5 min. If it is empty or 6 hours off, tell me: verify would answer `OTP_EXPIRED` for every new owner.
+Confirmed 2026-10-09 from the CRM audit history (no new owner needed): the user created by our API at 20:54:35.914 got `com_otpexpirydate = 20:59:36` (create + 5 min) 0.2 s later. To check any other user:
+
+```
+https://phdtest.crm4.dynamics.com/api/data/v9.1/audits?$select=createdon,action,operation,changedata&$filter=_objectid_value eq <userId>&$orderby=createdon asc
+```
+
+The first row is the create (`action = 1`); the next one should set `com_otpexpirydate` to its time + 5 min.
 
 ---
 

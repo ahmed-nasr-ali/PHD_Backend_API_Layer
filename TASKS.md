@@ -47,14 +47,14 @@
 | 11b | `requestOtp` on `UserRegistrationData` → `com_requestotp` (optional, default false) | done |
 | 11c | `UserRegistrar` split into `findExisting` + `write` (invited keep `save`); `OwnerRegistrationStrategy` | done |
 | 11d | Owner in the factory + the module (`PhdAccountRepository` provider). Isolated e2e: 25/25 pass (6 owner cases) | done |
-| 12 | Owner: `POST /auth/verify-otp` + `POST /auth/resend-otp` (rules: O6, O7, O11 in `OPEN_QUESTIONS.md`; the plugin owns the OTP and its 5-min expiry, tested on phdtest 2026-10-09) | done (Postman run pending) |
+| 12 | Owner: `POST /auth/verify-otp` + `POST /auth/resend-otp` (rules: O6, O7, O11 in `OPEN_QUESTIONS.md`; the plugin owns the OTP and its 5-min expiry, tested on phdtest 2026-10-09) | done (Postman on phdtest passed 2026-10-09) |
 | 12-0 | `authentication` split into feature folders, each a Nest sub-module with all its layers: `register/` (everything that existed, `RegisterModule`, `RegisterController`) + `shared/domain/` (`RegisteredAs`, `UserStatus`/`UserState`, `AuthenticationErrorCode`, `UserDeactivatedError`); `authentication.module.ts` only imports `RegisterModule`. Moved with `git mv`, imports recomputed. `tsc` clean, isolated e2e 36/36 + mapper 2/2. Skill (`folder-structure.md`, `SKILL.md`, `strategies.md`) + `docs/structure.md` § 4c | done |
 | 12f | `dto/` split into `requests/` (Zod schemas + `fields/`) and `responses/` (plain types) in `otp/`, `register/` and `invitations/`: 27 files moved with `git mv`, imports recomputed, only import lines changed. `tsc` + `oxlint` clean; isolated resend 15/15, verify 18/18, OTP domain 19/19, register 36/36, mapper 2/2. Skills (`folder-structure.md`, `SKILL.md`, `strategies.md`, `request-validation-and-dtos`) + docs (`structure.md`, `flow.md`, guide, reference) | done |
 | 12a | Owner register writes `com_mobileverified = false` (a reused user may come back with a new mobile, and must be able to verify again). Mapper: `requestOtp` → `com_mobileverified: false` · no OTP → not sent. Isolated: mapper check 2/2 + e2e 36/36 | done |
 | 12b | `otp/` domain + repository (own `OtpUser` model + `OtpUserRepository` over `com_users`, register untouched): read `com_otp`, `com_otpexpirydate`; rules `ensureCanUseOtp` + `ensureOtpValid`; `findById` (404 → null), `markMobileVerified`, `requestOtp`; errors `USER_NOT_FOUND` 404, `OTP_NOT_ALLOWED` 403, `OTP_INVALID` / `OTP_EXPIRED` 422 (`UserNotFoundError` moves to `shared/` when login needs it). Isolated: 19/19 (rules, mapper, repository with a fake client) + register 36/36 | done |
 | 12c | `POST /auth/verify-otp` `{ userId, otp }`: DTO (OTP = 4 digits, string), input, service, `OtpController`, `OtpModule` (imported by `AuthenticationModule`). 200 → `{ userId, mobileVerified: true }`; every error 422 / 404 / 403 with its `code`. Isolated HTTP e2e 18/18 + OTP domain 19/19 + register 36/36 | done |
 | 12d | `POST /auth/resend-otp` `{ userId }`: 60 s cooldown from `com_otpexpirydate − 5 min` → 429 `OTP_RESEND_TOO_SOON` + `retryAfterSeconds` in the body (capped at 60). Core: `BusinessErrorKind.TooManyRequests` + `RetryLaterError`, filter adds `retryAfterSeconds`. 200 → `{ userId, otpSent: true }`. Isolated HTTP e2e 15/15 + verify 18/18 + OTP domain 19/19 + register 36/36 | done |
-| 12e | Isolated e2e (fake repositories): resend 15/15, verify 18/18, OTP domain 19/19, register 36/36. Manual cases for Postman on phdtest: `OTP_TEST_CASES.md` (18 cases, incl. register again after verify and the O7 create check) | done (Postman run pending) |
+| 12e | Isolated e2e (fake repositories): resend 15/15, verify 18/18, OTP domain 19/19, register 36/36. Manual cases for Postman on phdtest: `OTP_TEST_CASES.md` (18 cases, incl. register again after verify and the O7 create check) | done (Postman on phdtest passed 2026-10-09) |
 | 13 | Invited types: link the invitation to the user after save (`com_LinkedUser`, S26), invitation stays Confirmed | done |
 | 13a | `invitations`: `InvitationRepository.linkUser(invitationId, userId)` + Dataverse (`InvitationLinkUserWriteRow`); verifier returns the invitation `id` | done |
 | 13b | The 5 invited strategies call `linkUser` after `registrar.save` | done |
@@ -76,3 +76,19 @@
 | 18i | Docs (`docs/structure.md`, `nestjs-crm-architecture-guide.md`, `-reference.md`, `review-and-corrections.md`): `mappers/` path + strategies | done (`review-and-corrections.md` only mentions "table-mapper" in general words, no path: left as it is) |
 | 10 | Manual Postman test on phdtest of all 6 types. First round (invited, owner) passed; extra cases in `REGISTER_TEST_CASES.md` passed (2026-10-09) | done |
 | 16 | Clean-up before OTP: `birthDate` returns one message only (`abort: true`); remove the unused `isSameMobile` (file deleted, the 10 digits are inline in the 2 repositories) | done |
+
+## Step 3: Files — upload / update / delete / get, served as network files (`core/files`)
+
+Study: [docs/files-study.md](docs/files-study.md) · decisions F1–F6 in `OPEN_QUESTIONS.md` section 3 · IT request: [docs/it-request-sharepoint-access.md](docs/it-request-sharepoint-access.md).
+
+| # | Task | Status |
+| --- | --- | --- |
+| 0 | Study + decisions: F1 decided (Graph target, flows until IT grants), F4 answered (same folder, name format, double-encoded path), F2 always stream, F3 signed (private) + public (guest mode) links, public sources agreed per case, F5 thumbnails only from the store, F6 per case | done |
+| 1 | `core/files` contract: ports `FileReader` / `FileWriter` / `FileStorage` (upload, replace, delete, get), types (file key, content, metadata), `InMemoryFileStorage`, one contract test suite every adapter must pass. No SharePoint | todo |
+| 2 | File settings: read site + folder paths (+ flow URLs, never logged) from `blser_generalsettings`, cached; one settings port so the source can change | todo |
+| 3 | Power Automate flows adapter (bridge): create / retrieve / delete flows behind `FileStorage`; replace = create with `oldfilepath`. Check first whether the create flow works without `entityname` (else it writes the CRM fields itself) | todo |
+| 4 | File links: private = signed token (source + key + version + expiry), public (guest mode) = no expiry, kind chosen by the server per source; `FileLinkFactory` + `GET /files/:token` (always streamed, ETag / 304, Range, thumbnails per F5) | todo |
+| 5 | `POST /auth/documents` (multipart): required documents per type, size / type checks, images re-encoded (no EXIF / GPS), same name + double-encoded path as the CRM tab reads, clean-up on failure, then Under Review + close the invitation | todo |
+| 6 | Handover note for the mobile team: multipart upload, links in bodies, `cached_network_image`, thumbnails, no future in `build()` | todo |
+| 7 | Graph adapter (when IT grants access): same contract tests; switch with one config value | blocked (IT) |
+| later | With their own modules: Dataverse image reader (events, news, sales launches, compounds), service-catalog "operation" flow, Facility Management flow | later |
