@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '../domain/models/user.model';
 import type { RegisterInput } from './register.input';
-import { RegistrationStrategyFactory } from './register/registration-strategy.factory';
+import { RegistrationStrategyFactory } from './register/strategies/registration-strategy.factory';
 
 @Injectable()
 export class RegisterService {

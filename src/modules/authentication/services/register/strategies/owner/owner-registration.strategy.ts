@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
-import { UserStatus } from '../../../domain/enums/user-status.enum';
-import { User } from '../../../domain/models/user.model';
-import { ensurePhdCustomer } from '../../../domain/rules/ensure-phd-customer';
-import { PhdAccountRepository } from '../../../repositories/phd-account.repository';
+import { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
+import { UserStatus } from '../../../../domain/enums/user-status.enum';
+import { User } from '../../../../domain/models/user.model';
+import { ensurePhdCustomer } from '../../../../domain/rules/ensure-phd-customer';
+import { PhdAccountRepository } from '../../../../repositories/phd-account.repository';
 import { RegistrationStrategy } from '../registration.strategy';
-import { UserRegistrar } from '../user-registrar';
+import { UserRegistrar } from '../../user-registrar';
 import type { OwnerRegisterInput } from './owner-register.input';
 
 /** Owner: everything from the form · must be a Palm Hills customer · gets an OTP */

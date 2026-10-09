@@ -1,5 +1,5 @@
-import type { RegisteredAs } from '../../../domain/enums/registered-as.enum';
-import type { UserIdentity } from '../../../domain/models/user-identity.model';
+import type { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
+import type { UserIdentity } from '../../../../domain/models/user-identity.model';
 
 /** What OwnerRegistrationStrategy needs: everything comes from the form (no invitation). */
 export interface OwnerRegisterInput {

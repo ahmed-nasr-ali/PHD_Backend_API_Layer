@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
-import { UserStatus } from '../../../domain/enums/user-status.enum';
-import { User } from '../../../domain/models/user.model';
-import { InvitedUserRegistrar } from '../invited-user-registrar';
-import { RegistrationInvitationVerifier } from '../registration-invitation.verifier';
+import { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
+import { UserStatus } from '../../../../domain/enums/user-status.enum';
+import { User } from '../../../../domain/models/user.model';
+import { InvitedUserRegistrar } from '../../invited-user-registrar';
+import { RegistrationInvitationVerifier } from '../../registration-invitation.verifier';
 import { RegistrationStrategy } from '../registration.strategy';
 import type { TenantFamilyMemberRegisterInput } from './tenant-family-member-register.input';
 

@@ -64,6 +64,7 @@
 | 18d | Flow-chart doc of every register case for the team lead: https://claude.ai/artifact/PkrLJofCgcqje2YAsjHtni (private until shared) | done |
 | 18f | `RegistrationStrategyFactory`: `Record<RegisterInput['type'], RegistrationStrategy>` instead of array + `find` + `throw new Error` (a missing strategy fails `tsc`). Isolated e2e: 36/36 | done |
 | 18g | Table-mappers moved to `repositories/dataverse/mappers/` (authentication: user, phd-account · invitations: invitation), imports fixed. Isolated e2e: 36/36 | done |
-| 18e | Skills (+ the new `mappers/` path, 27 mentions in 10 files): document the strategy + helpers pattern (`services/register/`) and the `User` without `create()` (S23) | todo |
+| 18h | Strategies grouped: `services/register/strategies/` holds the contract + factory and one folder per type (`<type>/<type>-registration.strategy.ts` + `<type>-register.input.ts`); helpers stay in `services/register/`; factory `for(input)`. Isolated e2e: 36/36 | done |
+| 18e | Skills (+ the new `mappers/` path, 27 mentions in 10 files, + the `strategies/<type>/` layout): document the strategy + helpers pattern (`services/register/`) and the `User` without `create()` (S23) | todo |
 | 10 | Manual Postman test on phdtest of all 6 types. First round (invited, owner) passed; extra cases in `REGISTER_TEST_CASES.md` passed (2026-10-09) | done |
 | 16 | Clean-up before OTP: `birthDate` returns one message only (`abort: true`); remove the unused `isSameMobile` (file deleted, the 10 digits are inline in the 2 repositories) | done |

@@ -1,6 +1,6 @@
-import { RegisteredAs } from '../../domain/enums/registered-as.enum';
-import { User } from '../../domain/models/user.model';
-import type { RegisterInput } from '../register.input';
+import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
+import { User } from '../../../domain/models/user.model';
+import type { RegisterInput } from '../../register.input';
 
 /** Every registration strategy (one per user type) must have these two things. */
 export abstract class RegistrationStrategy {

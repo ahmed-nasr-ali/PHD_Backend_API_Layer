@@ -9,13 +9,13 @@ import { UserRepository } from './repositories/user.repository';
 import { RegisterService } from './services/register.service';
 import { InvitedUserRegistrar } from './services/register/invited-user-registrar';
 import { RegistrationInvitationVerifier } from './services/register/registration-invitation.verifier';
-import { RegistrationStrategyFactory } from './services/register/registration-strategy.factory';
-import { FamilyMemberRegistrationStrategy } from './services/register/strategies/family-member-registration.strategy';
-import { OwnerRegistrationStrategy } from './services/register/strategies/owner-registration.strategy';
-import { RefOwnerRegistrationStrategy } from './services/register/strategies/ref-owner-registration.strategy';
-import { RefRegistrationStrategy } from './services/register/strategies/ref-registration.strategy';
-import { TenantFamilyMemberRegistrationStrategy } from './services/register/strategies/tenant-family-member-registration.strategy';
-import { TenantRegistrationStrategy } from './services/register/strategies/tenant-registration.strategy';
+import { RegistrationStrategyFactory } from './services/register/strategies/registration-strategy.factory';
+import { FamilyMemberRegistrationStrategy } from './services/register/strategies/family-member/family-member-registration.strategy';
+import { OwnerRegistrationStrategy } from './services/register/strategies/owner/owner-registration.strategy';
+import { RefOwnerRegistrationStrategy } from './services/register/strategies/ref-owner/ref-owner-registration.strategy';
+import { RefRegistrationStrategy } from './services/register/strategies/ref/ref-registration.strategy';
+import { TenantFamilyMemberRegistrationStrategy } from './services/register/strategies/tenant-family-member/tenant-family-member-registration.strategy';
+import { TenantRegistrationStrategy } from './services/register/strategies/tenant/tenant-registration.strategy';
 import { UserRegistrar } from './services/register/user-registrar';
 
 @Module({

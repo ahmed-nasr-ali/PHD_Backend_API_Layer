@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../domain/enums/registered-as.enum';
-import type { RegisterInput } from '../register.input';
+import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
+import type { RegisterInput } from '../../register.input';
 import { RegistrationStrategy } from './registration.strategy';
-import { FamilyMemberRegistrationStrategy } from './strategies/family-member-registration.strategy';
-import { OwnerRegistrationStrategy } from './strategies/owner-registration.strategy';
-import { RefOwnerRegistrationStrategy } from './strategies/ref-owner-registration.strategy';
-import { RefRegistrationStrategy } from './strategies/ref-registration.strategy';
-import { TenantFamilyMemberRegistrationStrategy } from './strategies/tenant-family-member-registration.strategy';
-import { TenantRegistrationStrategy } from './strategies/tenant-registration.strategy';
+import { FamilyMemberRegistrationStrategy } from './family-member/family-member-registration.strategy';
+import { OwnerRegistrationStrategy } from './owner/owner-registration.strategy';
+import { RefOwnerRegistrationStrategy } from './ref-owner/ref-owner-registration.strategy';
+import { RefRegistrationStrategy } from './ref/ref-registration.strategy';
+import { TenantFamilyMemberRegistrationStrategy } from './tenant-family-member/tenant-family-member-registration.strategy';
+import { TenantRegistrationStrategy } from './tenant/tenant-registration.strategy';
 
 /** Gives the registration strategy for a user type. */
 @Injectable()
@@ -36,8 +36,8 @@ export class RegistrationStrategyFactory {
     };
   }
 
-  /** type → its strategy (always one: checked by the compiler, see `strategies`) */
-  for(type: RegisterInput): RegistrationStrategy {
-    return this.strategies[type.type];
+  /** input → the strategy for its type (always one: checked by the compiler, see `strategies`) */
+  for(input: RegisterInput): RegistrationStrategy {
+    return this.strategies[input.type];
   }
 }
