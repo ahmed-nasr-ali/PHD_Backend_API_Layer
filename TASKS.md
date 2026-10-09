@@ -84,7 +84,10 @@ Study: [docs/files-study.md](docs/files-study.md) · decisions F1–F6 in `OPEN_
 | # | Task | Status |
 | --- | --- | --- |
 | 0 | Study + decisions: F1 decided (Graph target, flows until IT grants), F4 answered (same folder, name format, double-encoded path), F2 always stream, F3 signed (private) + public (guest mode) links, public sources agreed per case, F5 thumbnails only from the store, F6 per case | done |
-| 1 | `core/files` contract: ports `FileReader` / `FileWriter` / `FileStorage` (upload, replace, delete, get), types (file key, content, metadata), `InMemoryFileStorage`, one contract test suite every adapter must pass. No SharePoint | todo |
+| 1 | `core/files` contract, no SharePoint | done |
+| 1a | Ports `FileReader` (describe, open) / `FileWriter` (upload, replace, delete) / `FileStorage implements` both; types `StorageFolder` enum, `StorageKey`, `FileUpload` (Buffer), `StoredFile` (version), `FileContent` (stream); `index.ts`. `tsc` clean | done |
+| 1b | `InMemoryFileStorage` (`core/files/in-memory/`): `Map`, key `<folder>/<name>`, taken name → `<base>-<n><ext>`, replace = delete + upload, copies the buffer; exported from `index.ts`. `tsc` clean | done |
+| 1c | Contract suite `test/contracts/file-storage.contract.ts` (8 cases, deletes what it uploads) + `in-memory.file-storage.contract.spec.ts`. Jest is blocked in the repo, so run in a scratch copy: 8/8 pass; an adapter that overwrites on the same name fails 1/8 (the suite catches it) | done |
 | 2 | File settings: read site + folder paths (+ flow URLs, never logged) from `blser_generalsettings`, cached; one settings port so the source can change | todo |
 | 3 | Power Automate flows adapter (bridge): create / retrieve / delete flows behind `FileStorage`; replace = create with `oldfilepath`. Check first whether the create flow works without `entityname` (else it writes the CRM fields itself) | todo |
 | 4 | File links: private = signed token (source + key + version + expiry), public (guest mode) = no expiry, kind chosen by the server per source; `FileLinkFactory` + `GET /files/:token` (always streamed, ETag / 304, Range, thumbnails per F5) | todo |

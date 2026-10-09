@@ -162,12 +162,12 @@ HTTPS already encrypts the connection; the extra AES layer adds cost without add
 ```text
 src/core/files/                              technical building block, like core/dataverse (no business rules)
 ├── files.module.ts                          FilesModule.register({ driver }) → picks the adapter (one line to switch)
+├── index.ts                                 the only import path for features
 ├── ports/
 │   ├── file-reader.ts                       abstract FileReader   (describe, open)
 │   ├── file-writer.ts                       abstract FileWriter   (upload, replace, delete)
-│   ├── file-storage.ts                      abstract FileStorage  = reader + writer
-│   └── direct-download.ts                   abstract DirectDownload (optional: a short-lived provider URL)
-├── types/                                   StoredFile, FileUpload, FileContent, StorageKey, StorageFolder, ByteRange
+│   └── file-storage.ts                      abstract FileStorage implements FileReader, FileWriter (all 5 written out)
+├── types/                                   storage-folder.enum, storage-key, file-upload, stored-file, file-content (+ byte range / thumbnails in task 4)
 ├── links/
 │   ├── file-link.factory.ts                 builds the URL the app receives (signed, versioned)
 │   └── hmac-file-link.signer.ts             signs / checks link tokens (expiry, no tampering)
@@ -177,47 +177,53 @@ src/core/files/                              technical building block, like core
 ├── dataverse-image/                         reader only: Dataverse image columns (events, news, …)
 ├── local-disk/                              adapter for local dev
 └── in-memory/                               adapter for tests
+test/contracts/file-storage.contract.ts      one suite every adapter must pass (in test/, outside the build)
 src/modules/files/                           GET /files/:token  (streams the file, ETag / 304, Range)
 src/modules/authentication/documents/        POST /auth/documents (registration documents) — a feature folder like register/ and otp/
 ```
 
 ### 5.3 The ports
 
+As built in task 1 (`src/core/files/`):
+
 ```ts
-/** Reads stored files. Implemented by every store, and by read-only sources (Dataverse image columns). */
+/** Reads files. Every store implements it; read-only sources (Dataverse image columns) will too. */
 export abstract class FileReader {
-  /** found → its description · missing → null */
+  /** found → its description, no bytes · missing → null */
   abstract describe(key: StorageKey): Promise<StoredFile | null>;
-  /** found → a stream (whole file, or the range asked for) · missing → null */
-  abstract open(key: StorageKey, range?: ByteRange): Promise<FileContent | null>;
+  /** found → its description + bytes · missing → null */
+  abstract open(key: StorageKey): Promise<FileContent | null>;
 }
 
 /** Writes files. Only real stores implement it. */
 export abstract class FileWriter {
-  /** saves a new file; a name already taken → a unique name, never an overwrite */
+  /** saves a new file · name already taken → a unique name, never an overwrite */
   abstract upload(file: FileUpload): Promise<StoredFile>;
-  /** new content under the same key (links stay valid, the version changes) */
+  /** swaps the file at `key` for `file` · `key` missing → just saves `file`. The returned key may differ (the flows rename): callers keep it */
   abstract replace(key: StorageKey, file: FileUpload): Promise<StoredFile>;
   /** removes the file · already missing → no error (safe to retry) */
   abstract delete(key: StorageKey): Promise<void>;
 }
 
-/** A full store: SharePoint, Azure Blob, S3, local disk, in-memory. */
-export abstract class FileStorage extends FileReader implements FileWriter { /* … */ }
-
-/** Optional: stores that can hand out a short-lived URL so the bytes skip our server (Graph downloadUrl, Blob SAS, S3 presigned). */
-export abstract class DirectDownload {
-  abstract urlFor(key: StorageKey, validFor: Duration): Promise<URL>;
-}
+/** A full store. A class extends one class only, so both ports are `implements` and all 5 methods are written out. */
+export abstract class FileStorage implements FileReader, FileWriter { /* the 5 abstract methods */ }
 ```
+
+DI: `{ provide: FileStorage, useClass: <adapter> }` + `{ provide: FileReader, useExisting: FileStorage }` + `{ provide: FileWriter, useExisting: FileStorage }`.
+
+No `DirectDownload` port: F2 = always stream through our API. Byte ranges and thumbnails are added in task 4.
 
 ```ts
 interface FileUpload {
-  folder: StorageFolder;      // logical (UserDocuments, Vehicles, GatePasses, …); the adapter maps it to a real folder
+  folder: StorageFolder;      // logical (UserDocuments, …; one member per feature, added with it); the adapter maps it to a real folder
   name: string;               // built by the server, never by the phone
   contentType: string;        // checked from the bytes, not the extension
-  size: number;
-  content: Readable;          // a stream: the file is never fully in memory
+  content: Buffer;            // whole file: files are small (F6) and the flows need it all as base64 anyway
+}
+
+interface FileContent {
+  file: StoredFile;
+  stream: Readable;           // sent to the client without loading it all in memory
 }
 
 interface StoredFile {
