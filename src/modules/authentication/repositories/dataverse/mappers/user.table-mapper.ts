@@ -24,7 +24,10 @@ export class UserTableMapper {
     });
   }
 
-  /** Both ID columns are always written: the unused one is cleared (a reused user may switch ID kind). */
+  /**
+   * Both ID columns are always written: the unused one is cleared (a reused user may switch ID kind).
+   * new OTP → mobile not verified (a reused owner may come back with a new mobile) · no OTP → undefined, not sent, left as it is
+   */
   static toTableWriteRow(data: UserRegistrationData): UserTableWriteRow {
     const { kind, number } = data.identity;
     return {
@@ -41,6 +44,7 @@ export class UserTableMapper {
       statuscode: data.status,
       com_appnotificationtoken: data.notificationToken,
       com_requestotp: data.requestOtp ?? false,
+      com_mobileverified: data.requestOtp ? false : undefined,
     };
   }
 

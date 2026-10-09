@@ -1,6 +1,8 @@
 # Enhancements
 
 - **Rate limit on invitation code check:** limit code guessing per device/IP and per code (e.g. 5 failures → lock 15 min). Needs a decision on where counters are stored.
+- **Limit wrong OTP attempts:** the OTP is 4 digits (10,000 options) and lives 5 minutes, so without a limit it can be guessed. E.g. 5 wrong tries → the OTP is dead, a resend is needed. Needs a new `com_users` column for the counter (CRM team).
+- **Max OTP sends per hour:** resend already waits 60 s between sends, but there is no total cap (e.g. 5 SMS per hour per user). Needs a counter column too (CRM team).
 - **Find users by the exact mobile number (to ask the team lead).**
 
   **What we do today.** On register we look for an existing user with the same mobile. We match only the **last 10 digits** (`endswith`):

@@ -31,4 +31,6 @@ export interface UserTableWriteRow {
   com_appnotificationtoken: string;
   /** true → a CRM plugin generates com_otp + its expiry and sends the SMS. */
   com_requestotp: boolean;
+  /** false → the mobile must be verified again (sent with every new OTP) · missing → left as it is */
+  com_mobileverified?: boolean;
 }

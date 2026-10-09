@@ -47,7 +47,12 @@
 | 11b | `requestOtp` on `UserRegistrationData` → `com_requestotp` (optional, default false) | done |
 | 11c | `UserRegistrar` split into `findExisting` + `write` (invited keep `save`); `OwnerRegistrationStrategy` | done |
 | 11d | Owner in the factory + the module (`PhdAccountRepository` provider). Isolated e2e: 25/25 pass (6 owner cases) | done |
-| 12 | Owner: `POST /auth/verify-otp`. Ask O6–O8 first | todo |
+| 12 | Owner: `POST /auth/verify-otp` + `POST /auth/resend-otp` (rules: O6, O7, O11 in `OPEN_QUESTIONS.md`; the plugin owns the OTP and its 5-min expiry, tested on phdtest 2026-10-09) | todo |
+| 12a | Owner register writes `com_mobileverified = false` (a reused user may come back with a new mobile, and must be able to verify again) | todo |
+| 12b | Domain + repository: read `com_otp`, `com_otpexpirydate`, `com_mobileverified`; find by id; mark verified; request a new OTP; new error codes | todo |
+| 12c | `POST /auth/verify-otp` `{ userId, otp }`: DTO (OTP = 4 digits), input, service, controller | todo |
+| 12d | `POST /auth/resend-otp` `{ userId }`: 60 s cooldown from `com_otpexpirydate − 5 min` → 429 + seconds left | todo |
+| 12e | Isolated e2e (fake repositories) + new cases in a test-case file for Postman on phdtest | todo |
 | 13 | Invited types: link the invitation to the user after save (`com_LinkedUser`, S26), invitation stays Confirmed | done |
 | 13a | `invitations`: `InvitationRepository.linkUser(invitationId, userId)` + Dataverse (`InvitationLinkUserWriteRow`); verifier returns the invitation `id` | done |
 | 13b | The 5 invited strategies call `linkUser` after `registrar.save` | done |
@@ -57,7 +62,7 @@
 | 14c | `InvitedUserRegistrar`: save + link, or close on a complete user; the 5 strategies use it; module | done |
 | 15 | A record found by the national ID is the same person (S18): `resolveExistingUser` drops the same-mobile check; reuse overwrites the mobile too; `hasCompleteAccount` = any found user is complete. Isolated e2e: 33/33 pass | done |
 | 17 | Services take an Input, not a DTO: `services/register.input.ts` (union) + one `<type>-register.input.ts` next to each strategy; `birthDateSchema` turns the string into a `Date`; the controller passes the validated body as `RegisterInput` (checked by TypeScript). Isolated e2e: 33/33 pass | done |
-| 18 | Full review of the register cycle against the skills, then a flow-chart doc for the team lead | in progress |
+| 18 | Full review of the register cycle against the skills, then a flow-chart doc for the team lead. Committed: e351c70 | done |
 | 18a | Deactivated user (`statecode` Inactive) found → 403 `USER_DEACTIVATED`, nothing written, invitation untouched (`UserState` next to `UserStatus`, `statecode` read) | done |
 | 18b | Zod max lengths = `com_users` columns (name / email / password / passport 100, token 300); `PhdAccountSearchColumns` types the `accounts` filter column; comments on national-id / passport | done |
 | 18c | Dead code: unused `OwnerRegisterDto` import + 6 unused `<Type>RegisterDto` types | done |

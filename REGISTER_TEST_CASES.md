@@ -287,7 +287,11 @@ A national ID that is in `accounts.new_cbrnumber`, and your mobile (not in `com_
 }
 ```
 
-**Check:** the SMS arrives · in the CRM `com_registeredas = 1`, `com_requestotp = true`.
+**Check:** the SMS arrives · in the CRM `com_registeredas = 1`, `com_requestotp = false` (the plugin sets it back after sending) · **new user only:** `com_otpexpirydate` = `createdon` + 5 min (confirms the plugin sets the expiry on create too, see O7):
+
+```
+https://phdtest.crm4.dynamics.com/api/data/v9.1/com_users(<userId>)?$select=createdon,com_otp,com_otpexpirydate,com_requestotp
+```
 
 ### 4.2 Owner with the deactivated user's mobile → 403, no SMS
 
