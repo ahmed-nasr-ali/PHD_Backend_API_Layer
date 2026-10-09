@@ -41,3 +41,14 @@ export class InvitationRoleNotSupportedError extends BusinessError {
     );
   }
 }
+
+export class InvitationRoleMismatchError extends BusinessError {
+  readonly kind = BusinessErrorKind.RuleViolation;
+
+  constructor() {
+    super(
+      'The user type does not match the invitation',
+      InvitationErrorCode.RoleMismatch,
+    );
+  }
+}

@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service';
 import { DataverseModule } from './core/dataverse';
 import { HttpModule } from './core/http';
+import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module';
     DataverseModule,
     HttpModule,
     InvitationsModule,
+    AuthenticationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -46,7 +46,7 @@ src/
     ├── dto/                              create-customer.dto.ts, customer-id.dto.ts, customer-response.dto.ts
     ├── mappers/                          customer-response.mapper.ts
     ├── services/                         create-customer.service.ts + create-customer.input.ts, get-customer.service.ts, ...
-    ├── domain/                           enums/ (one enum per file) · models/ (customer.model.ts, customer.props.ts) · errors/ (customer.errors.ts) · rules/
+    ├── domain/                           enums/ (one enum per file; an entity's Status + State share one file) · models/ (customer.model.ts, customer.props.ts) · errors/ (customer.errors.ts) · rules/
     └── repositories/
         ├── customer.repository.ts        abstract class
         └── dataverse/                    dataverse-customer.repository.ts, customer.table-mapper.ts, tables/customer.table.ts, queries/customer.query.ts
@@ -60,9 +60,10 @@ Features without business rules may omit `domain/`.
 
 | Thing | File | Exported names |
 | --- | --- | --- |
-| Enum (option set / error codes) | `domain/enums/<name>.enum.ts` | `CustomerStatus` (CRM values), `CustomerErrorCode` |
+| Enum (option set) | `domain/enums/<name>.enum.ts` | `CustomerStatus` (CRM values) |
+| Error codes (one per module) | `domain/enums/<module>-error-code.enum.ts` | `CustomerErrorCode`, `AuthenticationErrorCode` |
 | Domain model | `domain/models/<entity>.model.ts` (+ `<entity>.props.ts`) | `Customer`, `CustomerProps` |
-| Domain errors | `domain/errors/<entity>.errors.ts` | `EmailAlreadyInUseError extends BusinessError` (code from the enum) |
+| Domain errors (one file per module) | `domain/errors/<module>.errors.ts` | `EmailAlreadyInUseError extends BusinessError` (code from the enum) |
 | Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (`execute(input)`) |
 | Service input | `services/<verb>-<entity>.input.ts` (next to its service) | `CreateCustomerInput` |

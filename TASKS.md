@@ -30,14 +30,31 @@
 | # | Task | Status |
 | --- | --- | --- |
 | 1 | Answer the open questions (`OPEN_QUESTIONS.md` section 2), agree on the design, split into tasks | done (S19, S20 left) |
-| 2 | `authentication` domain (14 files): enums (`RegisteredAs`, `UserStatus`, `IdentityKind`, `UserErrorCode`, `AccountErrorCode`), models (`User` + props with `isProfileComplete` (S6b), `UserIdentity`, `UserRegistrationData`, `PhdAccount`), errors (`UserExistsError` 409, `NotPhdCustomerError` 403), rules (`resolveExistingUser` (S18), `ensurePhdCustomer` (S22)) | in progress |
-| 3 | Abstract `UserRepository`: `findByMobileOrIdentity`, `create`, `update` | todo |
-| 4 | Dataverse `com_users`: `tables/`, `queries/`, table-mapper, `DataverseUserRepository` (mobile `eq` E.164, S11) | todo |
-| 5 | `invitations`: `InvitationRoleMismatchError` (+ code), `InvitationRepository.deactivate(id)`, mapping `InvitedAs` → `RegisteredAs` | todo |
-| 6 | Request DTO: `z.discriminatedUnion('type')`, one schema per type, `identity { kind, number }`, field rules (S10); response DTO + mapper (S19) | todo |
-| 7 | Strategies: `RegistrationStrategy` interface + `REGISTRATION_STRATEGIES` token + `RegistrationStrategyFactory`; shared invited step (code + id re-check, role match, deactivate on mismatch) | todo |
-| 8 | 5 invited strategies: Family Member, Tenant, Tenant Family Member, REF, REF Owner | todo |
-| 9 | `RegisterService`, `AuthenticationController` (`POST /auth/register`), `AuthenticationModule` (imports `InvitationsModule`) + `AppModule` | todo |
-| 10 | Manual Postman test of the 5 invited types | todo |
-| 11 | Owner: `OwnerRegistrationStrategy` (match `accounts`, create user, send OTP). Ask O4–O7 first | todo |
+| 2 | `authentication` domain (12 files): enums (`RegisteredAs`, `UserStatus`, `IdentityKind`, one `AuthenticationErrorCode` for the module), models (`User` + props with `isProfileComplete` (S6b), `UserIdentity`, `UserRegistrationData`, `PhdAccount`), one `authentication.errors.ts` (`UserExistsError` 409, `NotPhdCustomerError` 403), rules (`resolveExistingUser` (S18), `ensurePhdCustomer` (S22)) | done |
+| 3 | Abstract `UserRepository`: `findByMobileOrIdentity`, `create` / `update` (return the saved `User`, S23) | done |
+| 4 | Dataverse `com_users`: `tables/user.table.ts` (read row + write row), `queries/user.query.ts`, `user.table-mapper.ts`, `DataverseUserRepository` (mobile `endswith` last 10 digits + `isSameMobile`, S11) | done |
+| 5 | `invitations`: `InvitationRoleMismatchError` (+ code), `InvitationState` enum, `InvitationRepository.deactivate(id)` (Inactive + Deactivated); `authentication`: `registeredAsForInvitation` (`InvitedAs` → `RegisteredAs`) | done |
+| 6 | Request DTO: `dto/fields/` (one Zod field per file) + `dto/register/` (one strict schema per type) + `register.dto.ts` (`discriminatedUnion('type')`); check-code made strict; response DTO + mapper from the saved `User` (S19, S23: `createAndRetrieve` / `updateAndRetrieve` in `core/dataverse`) | done |
+| 7 | Strategies, built bottom-up (each piece only uses pieces already built): | done |
+| 7a | `RegistrationStrategy`: the contract every strategy follows (`type` + `execute`) | done |
+| 7b | `RegistrationInvitationVerifier`: checks the invitation only (code + id, mobile, type match → deactivate + `ROLE_MISMATCH`). Uses `InvitationRepository`, `pickInvitationForCode`, `registeredAsForInvitation` | done |
+| 7c | `UserRegistrar`: finds + saves the user only (create / update / `USER_EXISTS`). Uses `UserRepository`, `resolveExistingUser` | done |
+| 8 | 5 invited strategies (Family Member, Tenant Family Member, Tenant, REF, REF Owner): each uses 7b + 7c and says what it saves | done |
+| 8b | `RegistrationStrategyFactory`: type → strategy (last, it needs the 5 strategies; the 5 are injected by class, no token) | done |
+| 9 | `RegisterService`, `AuthenticationController` (`POST /auth/register`), `AuthenticationModule` (imports `InvitationsModule`) + `AppModule`. Until task 11, `type: 1` (Owner) passes the DTO but has no strategy → 500 (accepted, temporary). Isolated e2e (fake repositories, no CRM): 19/19 cases pass | done |
+| 11 | Owner: `OwnerRegistrationStrategy` (match `accounts`, create user, send OTP via `com_requestotp = true`) | done |
+| 11a | `accounts` search: `PhdAccountRepository` + Dataverse (table, query, mapper; `endswith` mobile OR ID, `top: 1`) | done |
+| 11b | `requestOtp` on `UserRegistrationData` → `com_requestotp` (optional, default false) | done |
+| 11c | `UserRegistrar` split into `findExisting` + `write` (invited keep `save`); `OwnerRegistrationStrategy` | done |
+| 11d | Owner in the factory + the module (`PhdAccountRepository` provider). Isolated e2e: 25/25 pass (6 owner cases) | done |
 | 12 | Owner: `POST /auth/verify-otp`. Ask O6–O8 first | todo |
+| 13 | Invited types: link the invitation to the user after save (`com_LinkedUser`, S26), invitation stays Confirmed | done |
+| 13a | `invitations`: `InvitationRepository.linkUser(invitationId, userId)` + Dataverse (`InvitationLinkUserWriteRow`); verifier returns the invitation `id` | done |
+| 13b | The 5 invited strategies call `linkUser` after `registrar.save` | done |
+| 14 | Invited + complete user found → `USER_EXISTS` + close the invitation (Completed + `com_acceptedon`, no link) (S27). Isolated e2e: 31/31 pass | done |
+| 14a | Domain: `UserExistsError.hasCompleteAccount` set by `resolveExistingUser` (only the user with the invitation's mobile counts; a complete user found by ID only → false) | done |
+| 14b | `invitations`: `InvitationRepository.complete(id)` + Dataverse (`InvitationCompleteWriteRow`) | done |
+| 14c | `InvitedUserRegistrar`: save + link, or close on a complete user; the 5 strategies use it; module | done |
+| 15 | A record found by the national ID is the same person (S18): `resolveExistingUser` drops the same-mobile check; reuse overwrites the mobile too; `hasCompleteAccount` = any found user is complete. Isolated e2e: 33/33 pass | done |
+| 10 | Manual Postman test on phdtest of all 6 types. First round (invited, owner) passed; extra cases in `REGISTER_TEST_CASES.md` passed (2026-10-09) | done |
+| 16 | Clean-up before OTP: `birthDate` returns one message only (`abort: true`); remove the unused `isSameMobile` (file deleted, the 10 digits are inline in the 2 repositories) | done |

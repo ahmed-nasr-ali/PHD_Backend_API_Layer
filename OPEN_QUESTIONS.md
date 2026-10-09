@@ -70,18 +70,23 @@ One endpoint for every user type. The body carries `type`; each type has its own
 | S10 | Field rules | national ID exactly 14 digits; passport no length rule; email regex; password digit + lower + upper + symbol | 2026-10-08 |
 | S6 | Unfinished user with the same mobile | reuse the record and overwrite email / password / ID with the new values, only if its role matches | 2026-10-08 |
 | S6b | "Complete" vs "unfinished" | `com_profilepicturefilepath` empty = unfinished (all types), as the app does today | 2026-10-08 |
-| S18 | Find an existing user | by mobile **or** national ID / passport, for all types. None → create · one record found by mobile, unfinished, same role → reuse · anything else → `USER_EXISTS` | 2026-10-08 |
-| S11 | Mobile match | exact `com_mobilenumber eq` on E.164 (`+…`), no `endswith`; old data format to confirm with a browser query | 2026-10-08 |
+| S18 | Find an existing user | by mobile **or** national ID / passport, for all types. None → create · one record found (by mobile, ID or both), unfinished, same role → reuse (its data is overwritten, the mobile too) · anything else → `USER_EXISTS`. Changed 2026-10-09: a record found by the ID is the same person (a national ID is never on 2 records); see `NOTES.md` | 2026-10-09 |
+| S11 | Mobile match | `endswith(com_mobilenumber, <last 10 digits>)` for now: old records mix `+20…`, `0…`, `20…` (seen on phdtest). The rule compares the last 10 digits too. Exact E.164 match is in `ENHANCEMENTS.md` | 2026-10-08 |
 | S20 | Firebase token | required in the body (`com_appnotificationtoken`) | 2026-10-08 |
 | S21 | Fields per type | `z.discriminatedUnion('type')`, one `z.strictObject` per type: a missing field **or an extra field** (e.g. `birthDate` for an owner) → 422. Invited types never send the mobile (taken from the invitation) | 2026-10-08 |
 | S22 | Owner `accounts` check | only when no user is found in `com_users`. Unfinished user reused → no `accounts` check. No account → `NOT_PHD_CUSTOMER` (403) | 2026-10-08 |
+| S23 | How the register response is built | from the record the CRM saved: `create` / `update` send `Prefer: return=representation` and get the row back in the same request → `User` → response. No second request | 2026-10-08 |
+| S19 | Register response | the user's basic data: `userId`, `name`, `mobile`, `email`, `registeredAs`, `status`, `identity { kind, number }`, `birthDate` (never password / OTP) | 2026-10-08 |
+| S24 | Password length | at least 8 characters (plus digit + lower + upper + symbol) | 2026-10-08 |
+| S25 | Email | trimmed, case kept (we never search by email) | 2026-10-08 |
+| S26 | Link the invitation to the new user | yes, at register: `com_LinkedUser@odata.bind` on the invitation (the app does it right after create). The invitation stays Confirmed; Completed + `com_acceptedon` come after the documents (S15). Re-register links again (same user) | 2026-10-08 |
+| S27 | Invited user, but the found user is **complete** | `USER_EXISTS` (go log in) + close the invitation like the app: Completed (statecode 1 / statuscode 2) + `com_acceptedon`, **not** linked to the existing user. "Found" = by the mobile or the ID (changed 2026-10-09 with S18). The other `USER_EXISTS` cases (2+ records with none complete, unfinished other type) leave the invitation Confirmed | 2026-10-09 |
 | S17 | National ID / passport shape | `identity: { kind: 'national' \| 'passport', number }` | 2026-10-08 |
 
 ### Open
 
 | # | Question | Status |
 | --- | --- | --- |
-| S19 | Register response = the user's basic data: `userId`, `name`, `mobile`, `email`, `registeredAs`, `status`, `identity { kind, number }`, `birthDate` (never password / OTP). Confirm the fields | open |
 
 ## Later steps (from the handover docs)
 
@@ -92,11 +97,13 @@ One endpoint for every user type. The body carries `type`; each type has its own
 | O1 | Unfinished user restarts with new name/email/password: overwrite the old record or keep it? | open |
 | O2 | Password hashing changes login for every user type: migrate all at once, or hash on next login? | open |
 | O3 | Which status means "started, not submitted"? | open |
-| O4 | Is there a lookup field on `com_users` to link the matched `accounts` record? | open |
-| O5 | Format of `accounts.new_mobilenumber` (`+20…`, leading `0`, …)? | open |
+| O4 | Is there a lookup field on `com_users` to link the matched `accounts` record? | answered 2026-10-08: `com_relatedaccount` exists, but register does **not** set it (same as the app today). The app links it **after login** (`relatedAccountProcess()` in `user_data.dart`: user not linked → `accounts` by `new_cbrnumber` = national ID **only** → first record → `com_RelatedAccount@odata.bind`). Decision (A): keep register as is; do the link when login moves to the backend. Known gap (same as today): owner accepted by mobile only (ID not in `accounts`) or by passport → never linked |
+| O5 | Format of `accounts.new_mobilenumber` (`+20…`, leading `0`, …)? | answered 2026-10-08: local `01…` on phdtest, with duplicates (same mobile / ID on several accounts) → search with `endswith` last 10 digits, like `com_users` |
 | O6 | OTP rules: expiry, max attempts, resend cooldown, max sends per hour. Where are counters stored? | open |
 | O7 | Fix the `com_otpexpirydate` 6-hour offset in the CRM plugin, or in the API? | open |
 | O8 | Keep `/registration/cancel`, or expire unverified records with a scheduled job? | open |
+| O9 | Resend OTP (`com_requestotp = true` again): in the verify-otp task, or a task of its own? | open |
+| O10 | OTP length (4 or 6 digits) for the validation? | open |
 
 ### Invited user registration
 

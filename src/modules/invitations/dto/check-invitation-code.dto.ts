@@ -1,9 +1,9 @@
 import { z } from 'zod';
+import { invitationCodeSchema } from './fields/invitation-code.schema';
 
-export const checkInvitationCodeSchema = z.object({
-  code: z
-    .string()
-    .regex(/^[A-Za-z0-9]{8}$/, 'Code must be exactly 8 letters or digits'),
+/** extra field → 422 */
+export const checkInvitationCodeSchema = z.strictObject({
+  code: invitationCodeSchema,
 });
 
 export type CheckInvitationCodeDto = z.infer<typeof checkInvitationCodeSchema>;

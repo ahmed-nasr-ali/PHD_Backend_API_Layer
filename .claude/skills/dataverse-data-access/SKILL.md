@@ -26,8 +26,10 @@ Related: `repository-design` (designing the abstract repository this implements)
 abstract class DataverseClient {
   retrieve<T>(table: string, id: string, select?: string[]): Promise<T>;            // 404 → throws DataverseException
   retrieveMultiple<T>(table: string, query?: DataverseQuery): Promise<T[]>;        // first page only (see querying.md)
-  create(table: string, data: object): Promise<string>;
+  create(table: string, data: object): Promise<string>;                               // returns the new id
+  createAndRetrieve<T>(table: string, data: object, select: string[]): Promise<T>;  // returns the saved row, same request
   update(table: string, id: string, data: object): Promise<void>;
+  updateAndRetrieve<T>(table: string, id: string, data: object, select: string[]): Promise<T>; // same
   delete(table: string, id: string): Promise<void>;
 }
 interface DataverseQuery { select?: string[]; filter?: string; orderBy?: string[]; top?: number; expand?: DataverseExpand[] }
@@ -36,6 +38,8 @@ class DataverseException extends Error { status?: number }                      
 const odataString: (value: string) => string;                                       // 'O''Brien': escaped OData literal
 const optionSetValue: <E>(optionSet: E, value: number | null) => E[keyof E] | null; // enum member or null
 ```
+
+When the service needs the record after a write (e.g. to return it), use `createAndRetrieve` / `updateAndRetrieve` with the query's `<ENTITY>_COLUMNS`: Dataverse sends the saved row back in the same request (`Prefer: return=representation`), so values set by CRM plugins are included and no second `retrieve` is needed. Map the row with `toDomain`, like a read.
 
 The client handles MSAL client-credentials tokens, refreshes and retries once on 401, and normalises all failures to `DataverseException`. `table` is the **entity set name** (`contacts`, `com_invitationrequests`).
 

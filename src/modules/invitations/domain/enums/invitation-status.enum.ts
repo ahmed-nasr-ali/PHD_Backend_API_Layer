@@ -9,3 +9,11 @@ export enum InvitationStatus {
   UnderReview = 181410005,
   RejectedByUser = 181410006,
 }
+
+/** Invitation state: CRM `statecode` of `com_invitationrequests`. A status is written together with its state. */
+export enum InvitationState {
+  /** Requested, Confirmed, Under Review */
+  Active = 0,
+  /** Completed, Rejected (by owner / user / community team), Deactivated */
+  Inactive = 1,
+}

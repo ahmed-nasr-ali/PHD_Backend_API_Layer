@@ -61,7 +61,7 @@ export abstract class BusinessError extends Error {
 }
 ```
 
-A feature declares its error codes in `domain/enums/<entity>-error-code.enum.ts` and its errors in `domain/errors/<entity>.errors.ts`:
+A module declares **one** error-code enum, `domain/enums/<module>-error-code.enum.ts`, and **one** errors file, `domain/errors/<module>.errors.ts`, for all its entities. Never one enum or errors file per entity (e.g. the `authentication` module has `AuthenticationErrorCode` and `authentication.errors.ts` holding both `UserExistsError` and `NotPhdCustomerError`). `<module>` is the singular module name (`customers` → `customer`):
 
 ```ts
 // domain/enums/customer-error-code.enum.ts

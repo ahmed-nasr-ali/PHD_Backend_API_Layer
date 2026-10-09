@@ -4,4 +4,5 @@ export enum InvitationErrorCode {
   Invalid = 'INVITATION_INVALID',
   AlreadyUsed = 'INVITATION_ALREADY_USED',
   RoleNotSupported = 'INVITATION_ROLE_NOT_SUPPORTED',
+  RoleMismatch = 'INVITATION_ROLE_MISMATCH',
 }

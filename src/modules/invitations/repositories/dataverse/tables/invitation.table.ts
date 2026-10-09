@@ -14,3 +14,19 @@ export interface InvitationTableRow {
   createdon: string; // UTC ISO date-time
   com_com_invitationrequest_com_invitationunit_InvitationRequest: InvitationUnitLinkTableRow[];
 }
+
+/** What a status change writes: Dataverse accepts a `statuscode` only together with its own `statecode`. */
+export interface InvitationStatusWriteRow {
+  statecode: number;
+  statuscode: number;
+}
+
+/** What completing writes: the status pair + when it was accepted. */
+export interface InvitationCompleteWriteRow extends InvitationStatusWriteRow {
+  com_acceptedon: string; // UTC ISO date-time
+}
+
+/** What linking a user writes: the `com_LinkedUser` lookup, set by binding to the user's record. */
+export interface InvitationLinkUserWriteRow {
+  'com_LinkedUser@odata.bind': string;
+}

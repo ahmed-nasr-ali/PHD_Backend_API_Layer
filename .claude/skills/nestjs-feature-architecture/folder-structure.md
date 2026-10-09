@@ -28,14 +28,14 @@ src/
         │   ├── update-customer.service.ts
         │   └── update-customer.input.ts
         ├── domain/
-        │   ├── enums/                            one enum per file
-        │   │   ├── customer-status.enum.ts       CRM option set: values are the CRM values
-        │   │   └── customer-error-code.enum.ts   the feature's error codes
+        │   ├── enums/                            one enum per file (except state + status, below)
+        │   │   ├── customer-status.enum.ts       CRM statuscode + its statecode (CustomerStatus + CustomerState): one file
+        │   │   └── customer-error-code.enum.ts   the module's error codes: one enum per module
         │   ├── models/                           one type per file
         │   │   ├── customer.model.ts             class: private constructor, create / restore, rules
         │   │   └── customer.props.ts             what the class is built from
         │   ├── errors/
-        │   │   └── customer.errors.ts            BusinessError subclasses (codes from the enum)
+        │   │   └── customer.errors.ts            all the module's BusinessError subclasses (codes from the enum)
         │   └── rules/                            optional: pure logic across several models
         │       └── pick-customer-for-x.ts
         └── repositories/
@@ -66,10 +66,12 @@ src/
 
 | Thing | File | Exported names |
 | --- | --- | --- |
-| Enum (option set / error codes) | `domain/enums/<name>.enum.ts` | `CustomerStatus`, `CustomerErrorCode` |
+| Enum (option set) | `domain/enums/<name>.enum.ts` | `CustomerStatus` |
+| Status + state (one file) | `domain/enums/<entity>-status.enum.ts` | `InvitationStatus` + `InvitationState`: Dataverse accepts a `statuscode` only with its own `statecode`, so the pair lives together |
+| Error codes (one per module) | `domain/enums/<module>-error-code.enum.ts` | `CustomerErrorCode`, `AuthenticationErrorCode` |
 | Domain model | `domain/models/<entity>.model.ts` | `Customer` |
 | Model props | `domain/models/<entity>.props.ts` | `CustomerProps` |
-| Domain errors | `domain/errors/<entity>.errors.ts` | `CustomerNotFoundError` |
+| Domain errors (one file per module) | `domain/errors/<module>.errors.ts` | `CustomerNotFoundError`; `authentication.errors.ts` → `UserExistsError`, `NotPhdCustomerError` |
 | Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (+ its Result type, if it isn't a domain object) |
 | Service input | `services/<verb>-<entity>.input.ts` | `CreateCustomerInput` |

@@ -22,3 +22,4 @@
 | 18 | The word "schema" used for the Dataverse table | clashes with Zod schemas in `dto/` | `tables/<entity>.table.ts` / `CustomerTableRow` |
 | 19 | `super('…', 'CUSTOMER_NOT_FOUND')` with a hand-typed code | typos change the API contract silently | code from the feature enum: `CustomerErrorCode.NotFound` |
 | 20 | One `domain/customer.ts` holding enums, props and the class | grows into a god file; unclear imports | `domain/enums/`, `domain/models/` (`.model.ts` + `.props.ts`), `domain/errors/`, `domain/rules/`, one type per file |
+| 21 | One error-code enum / errors file per entity (`UserErrorCode` + `AccountErrorCode` in the same module) | the module's codes are scattered; two files for one or two codes each | one per module: `AuthenticationErrorCode` + `authentication.errors.ts` |

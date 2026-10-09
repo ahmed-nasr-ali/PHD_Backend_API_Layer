@@ -36,9 +36,43 @@ export class DynamicsWebApiClient extends DataverseClient {
     );
   }
 
+  createAndRetrieve<T>(
+    table: string,
+    data: object,
+    select: string[],
+  ): Promise<T> {
+    return this.run((token) =>
+      this.api.create<object, T>({
+        collection: table,
+        data,
+        select,
+        returnRepresentation: true,
+        token,
+      }),
+    );
+  }
+
   async update(table: string, id: string, data: object): Promise<void> {
     await this.run((token) =>
       this.api.update({ collection: table, key: id, data, token }),
+    );
+  }
+
+  updateAndRetrieve<T>(
+    table: string,
+    id: string,
+    data: object,
+    select: string[],
+  ): Promise<T> {
+    return this.run((token) =>
+      this.api.update<object, T>({
+        collection: table,
+        key: id,
+        data,
+        select,
+        returnRepresentation: true,
+        token,
+      }),
     );
   }
 
