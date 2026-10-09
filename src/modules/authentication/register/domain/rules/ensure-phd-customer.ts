@@ -1,4 +1,4 @@
-import { NotPhdCustomerError } from '../errors/authentication.errors';
+import { NotPhdCustomerError } from '../errors/register.errors';
 import { PhdAccount } from '../models/phd-account.model';
 
 /**

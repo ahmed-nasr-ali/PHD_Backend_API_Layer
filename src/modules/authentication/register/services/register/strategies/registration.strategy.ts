@@ -1,4 +1,4 @@
-import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
+import { RegisteredAs } from '../../../../shared/domain/enums/registered-as.enum';
 import { User } from '../../../domain/models/user.model';
 import type { RegisterInput } from '../../register.input';
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { InvitationRepository } from '../../../invitations/repositories/invitation.repository';
-import { UserExistsError } from '../../domain/errors/authentication.errors';
+import { InvitationRepository } from '../../../../invitations/repositories/invitation.repository';
+import { UserExistsError } from '../../domain/errors/register.errors';
 import { UserRegistrationData } from '../../domain/models/user-registration-data.model';
 import { User } from '../../domain/models/user.model';
 import { UserRegistrar } from './user-registrar';

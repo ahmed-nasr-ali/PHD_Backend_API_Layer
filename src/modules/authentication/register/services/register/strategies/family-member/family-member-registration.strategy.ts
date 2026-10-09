@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
-import { UserStatus } from '../../../../domain/enums/user-status.enum';
+import { RegisteredAs } from '../../../../../shared/domain/enums/registered-as.enum';
+import { UserStatus } from '../../../../../shared/domain/enums/user-status.enum';
 import { User } from '../../../../domain/models/user.model';
 import { InvitedUserRegistrar } from '../../invited-user-registrar';
 import { RegistrationInvitationVerifier } from '../../registration-invitation.verifier';

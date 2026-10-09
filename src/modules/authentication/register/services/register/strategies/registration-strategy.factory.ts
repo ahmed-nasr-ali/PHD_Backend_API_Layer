@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
+import { RegisteredAs } from '../../../../shared/domain/enums/registered-as.enum';
 import type { RegisterInput } from '../../register.input';
 import { RegistrationStrategy } from './registration.strategy';
 import { FamilyMemberRegistrationStrategy } from './family-member/family-member-registration.strategy';

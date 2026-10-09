@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RegisteredAs } from '../../domain/enums/registered-as.enum';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
 import { emailSchema } from '../fields/email.schema';
 import { identitySchema } from '../fields/identity.schema';
 import { mobileSchema } from '../fields/mobile.schema';

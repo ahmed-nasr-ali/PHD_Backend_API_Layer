@@ -1,5 +1,5 @@
-import { InvitedAs } from '../../../invitations/domain/enums/invited-as.enum';
-import { RegisteredAs } from '../enums/registered-as.enum';
+import { InvitedAs } from '../../../../invitations/domain/enums/invited-as.enum';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
 
 /** Invitation type (`com_to`) → the user type it registers as (`com_registeredas`). */
 const REGISTERED_AS_BY_INVITATION: Record<InvitedAs, RegisteredAs | null> = {

@@ -69,6 +69,31 @@ services/
             └── owner-register.input.ts
 ```
 
+### A module with several features (feature folders)
+
+When one module serves several features with their own endpoints (e.g. `authentication`: register, otp, login, upload-files), each feature is a folder **and** a Nest sub-module with all its layers. The parent module only imports them:
+
+```text
+modules/authentication/
+├── authentication.module.ts              @Module({ imports: [RegisterModule, OtpModule] })
+├── shared/domain/                        CRM facts every feature must agree on
+│   ├── enums/                            option-set enums + the module's error-code enum
+│   └── errors/authentication.errors.ts   only errors thrown by more than one feature
+├── register/
+│   ├── register.module.ts                its own providers (repositories included)
+│   ├── controllers/register.controller.ts    @Controller('auth') → POST /auth/register
+│   ├── dto/  services/  mappers/  domain/  repositories/
+└── otp/
+    ├── otp.module.ts
+    └── controllers/  dto/  services/  domain/  repositories/
+```
+
+- A feature folder never imports from another feature folder. Something two features truly share moves to `shared/`.
+- `shared/` holds CRM facts only: option-set enums, the module's error-code enum (one per module, still), an error several features throw. Models, repositories and DTOs stay per feature.
+- Each feature reads the same CRM table through its own `tables/` row, model and repository, with only the columns it needs. The duplication is deliberate: data one feature needs (e.g. the OTP) never leaks into another feature's model.
+- Routes stay the same: every feature controller uses the parent prefix (`@Controller('auth')`).
+- Use this only once a module has several features. A module with one feature keeps the flat layout above.
+
 ## What each word means
 
 | Word | Means | Example |

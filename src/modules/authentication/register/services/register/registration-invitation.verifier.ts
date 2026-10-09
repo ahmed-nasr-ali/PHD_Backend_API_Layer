@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import {
   InvitationInvalidError,
   InvitationRoleMismatchError,
-} from '../../../invitations/domain/errors/invitation.errors';
-import { pickInvitationForCode } from '../../../invitations/domain/rules/pick-invitation-for-code';
-import { InvitationRepository } from '../../../invitations/repositories/invitation.repository';
-import { RegisteredAs } from '../../domain/enums/registered-as.enum';
+} from '../../../../invitations/domain/errors/invitation.errors';
+import { pickInvitationForCode } from '../../../../invitations/domain/rules/pick-invitation-for-code';
+import { InvitationRepository } from '../../../../invitations/repositories/invitation.repository';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
 import { registeredAsForInvitation } from '../../domain/rules/registered-as-for-invitation';
 
 /** What an invited user's record takes from the invitation. */

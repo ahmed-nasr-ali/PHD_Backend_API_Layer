@@ -1,8 +1,6 @@
-import { RegisteredAs } from '../enums/registered-as.enum';
-import {
-  UserDeactivatedError,
-  UserExistsError,
-} from '../errors/authentication.errors';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
+import { UserDeactivatedError } from '../../../shared/domain/errors/authentication.errors';
+import { UserExistsError } from '../errors/register.errors';
 import { User } from '../models/user.model';
 
 /**

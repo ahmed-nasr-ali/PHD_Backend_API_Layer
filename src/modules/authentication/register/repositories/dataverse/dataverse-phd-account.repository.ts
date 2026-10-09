@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataverseClient, odataString } from '../../../../core/dataverse';
+import { DataverseClient, odataString } from '../../../../../core/dataverse';
 import { IdentityKind } from '../../domain/enums/identity-kind.enum';
 import { PhdAccount } from '../../domain/models/phd-account.model';
 import { UserIdentity } from '../../domain/models/user-identity.model';

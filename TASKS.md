@@ -48,8 +48,9 @@
 | 11c | `UserRegistrar` split into `findExisting` + `write` (invited keep `save`); `OwnerRegistrationStrategy` | done |
 | 11d | Owner in the factory + the module (`PhdAccountRepository` provider). Isolated e2e: 25/25 pass (6 owner cases) | done |
 | 12 | Owner: `POST /auth/verify-otp` + `POST /auth/resend-otp` (rules: O6, O7, O11 in `OPEN_QUESTIONS.md`; the plugin owns the OTP and its 5-min expiry, tested on phdtest 2026-10-09) | todo |
-| 12a | Owner register writes `com_mobileverified = false` (a reused user may come back with a new mobile, and must be able to verify again) | todo |
-| 12b | Domain + repository: read `com_otp`, `com_otpexpirydate`, `com_mobileverified`; find by id; mark verified; request a new OTP; new error codes | todo |
+| 12-0 | `authentication` split into feature folders, each a Nest sub-module with all its layers: `register/` (everything that existed, `RegisterModule`, `RegisterController`) + `shared/domain/` (`RegisteredAs`, `UserStatus`/`UserState`, `AuthenticationErrorCode`, `UserDeactivatedError`); `authentication.module.ts` only imports `RegisterModule`. Moved with `git mv`, imports recomputed. `tsc` clean, isolated e2e 36/36 + mapper 2/2. Skill (`folder-structure.md`, `SKILL.md`, `strategies.md`) + `docs/structure.md` § 4c | done |
+| 12a | Owner register writes `com_mobileverified = false` (a reused user may come back with a new mobile, and must be able to verify again). Mapper: `requestOtp` → `com_mobileverified: false` · no OTP → not sent. Isolated: mapper check 2/2 + e2e 36/36 | done |
+| 12b | `otp/` domain + repository (own `OtpUser` model + `OtpUserRepository` over `com_users`, register untouched): read `com_otp`, `com_otpexpirydate`; rules `ensureCanUseOtp` + `ensureOtpValid`; `findById` (404 → null), `markMobileVerified`, `requestOtp`; errors `USER_NOT_FOUND` 404, `OTP_NOT_ALLOWED` 403, `OTP_INVALID` / `OTP_EXPIRED` 422 | todo |
 | 12c | `POST /auth/verify-otp` `{ userId, otp }`: DTO (OTP = 4 digits), input, service, controller | todo |
 | 12d | `POST /auth/resend-otp` `{ userId }`: 60 s cooldown from `com_otpexpirydate − 5 min` → 429 + seconds left | todo |
 | 12e | Isolated e2e (fake repositories) + new cases in a test-case file for Postman on phdtest | todo |

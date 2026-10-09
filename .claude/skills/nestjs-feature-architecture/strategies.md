@@ -1,6 +1,6 @@
 # One Operation, a Flow per Type (Strategies)
 
-Use this when **one endpoint** does the same job for several kinds of caller, and each kind needs its own fields and its own steps. The register endpoint is the live example: one `POST /auth/register` for six user types (`src/modules/authentication/services/register/`).
+Use this when **one endpoint** does the same job for several kinds of caller, and each kind needs its own fields and its own steps. The register endpoint is the live example: one `POST /auth/register` for six user types (`src/modules/authentication/register/services/register/`).
 
 Don't use it for a single flow with a couple of `if`s. Two or three small branches belong in the service itself.
 

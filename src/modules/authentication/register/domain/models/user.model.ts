@@ -1,5 +1,5 @@
-import { RegisteredAs } from '../enums/registered-as.enum';
-import { UserState, UserStatus } from '../enums/user-status.enum';
+import { RegisteredAs } from '../../../shared/domain/enums/registered-as.enum';
+import { UserState, UserStatus } from '../../../shared/domain/enums/user-status.enum';
 import { UserIdentity } from './user-identity.model';
 import { UserProps } from './user.props';
 

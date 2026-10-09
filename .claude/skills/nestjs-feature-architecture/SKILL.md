@@ -41,7 +41,7 @@ customers/
     └── dataverse/                  repository + tables/ (row shapes) + queries/ ($select, $expand) + mappers/ (table-mappers)
 ```
 
-Full tree and naming: [folder-structure.md](folder-structure.md).
+Full tree and naming: [folder-structure.md](folder-structure.md). A module with several features (e.g. `authentication`: register, otp, login) splits into feature folders, each a sub-module with all its layers, plus `shared/domain/` for CRM enums and error codes: see "A module with several features" there.
 
 | Folder | Layer | Must never import |
 | --- | --- | --- |
@@ -159,6 +159,7 @@ See [common-mistakes.md](common-mistakes.md). The top five:
 ## Practical checklist
 
 - [ ] Files are in the folders from [folder-structure.md](folder-structure.md)
+- [ ] Module with several features: one folder + sub-module per feature; no import between feature folders; only CRM enums / error codes / errors thrown by several features in `shared/`
 - [ ] `domain/` imports nothing from NestJS, Zod or `core/dataverse`
 - [ ] `domain/` split into `enums/`, `models/`, `errors/` (+ `rules/` when needed), one type per file (exception: an entity's `<Entity>Status` + `<Entity>State` share `<entity>-status.enum.ts`)
 - [ ] Error codes and option-set values used through enum members, never bare strings/numbers

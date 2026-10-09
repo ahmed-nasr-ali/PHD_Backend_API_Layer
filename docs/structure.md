@@ -376,10 +376,10 @@ modules/countries/
 
 ## 4b. One operation with a flow per type (`authentication`, register)
 
-`POST /auth/register` serves six user types, each with its own fields and steps. The service hands the work to one strategy per type; the strategies share small helper classes. Real code: `src/modules/authentication/services/`.
+`POST /auth/register` serves six user types, each with its own fields and steps. The service hands the work to one strategy per type; the strategies share small helper classes. Real code: `src/modules/authentication/register/services/`.
 
 ```text
-modules/authentication/services/
+modules/authentication/register/services/
 ├── register.service.ts                   # asks the factory for the strategy, runs it
 ├── register.input.ts                     # RegisterInput = union of the six per-type inputs
 └── register/
@@ -405,6 +405,33 @@ Rules:
 - Strategies compose the helpers; they don't inherit from a base class with shared steps.
 
 Details: `.claude/skills/nestjs-feature-architecture/strategies.md`.
+
+---
+
+## 4c. A module split into feature folders (`authentication`)
+
+`/auth/*` holds several features on the same CRM table (`com_users`): register, otp, later login and upload-files. Each feature is a folder **and** a Nest sub-module with all its own layers; `authentication.module.ts` only imports them. Real code: `src/modules/authentication/`.
+
+```text
+modules/authentication/
+├── authentication.module.ts              # imports RegisterModule (later OtpModule, LoginModule, …)
+├── shared/domain/                        # only the CRM facts every feature must agree on
+│   ├── enums/                            # RegisteredAs, UserStatus + UserState, AuthenticationErrorCode
+│   └── errors/authentication.errors.ts   # UserDeactivatedError (thrown by register and otp)
+├── register/
+│   ├── register.module.ts                # its own providers, repositories included
+│   ├── controllers/register.controller.ts    # POST /auth/register
+│   ├── dto/  services/  mappers/
+│   ├── domain/                           # User, UserRegistrationData, rules, register.errors.ts
+│   └── repositories/                     # UserRepository, PhdAccountRepository + dataverse/
+└── otp/                                  # same layers; its own small model + repository over com_users
+```
+
+Rules:
+- A feature folder never imports from another feature folder; what two features really share goes to `shared/`.
+- `shared/` holds CRM facts only (option-set enums, the module's error codes, an error two features throw). Models and repositories are **not** shared: each feature reads the columns it needs into its own model (the OTP lives only in `otp/`, never in register's `User`).
+- The same table can have one `tables/<entity>.table.ts` per feature, each with only its columns. This duplication is on purpose.
+- URLs don't change: every controller keeps `@Controller('auth')`.
 
 ---
 

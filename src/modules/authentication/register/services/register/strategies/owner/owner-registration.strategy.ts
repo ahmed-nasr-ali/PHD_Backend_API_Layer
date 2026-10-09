@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
-import { UserStatus } from '../../../../domain/enums/user-status.enum';
+import { RegisteredAs } from '../../../../../shared/domain/enums/registered-as.enum';
+import { UserStatus } from '../../../../../shared/domain/enums/user-status.enum';
 import { User } from '../../../../domain/models/user.model';
 import { ensurePhdCustomer } from '../../../../domain/rules/ensure-phd-customer';
 import { PhdAccountRepository } from '../../../../repositories/phd-account.repository';

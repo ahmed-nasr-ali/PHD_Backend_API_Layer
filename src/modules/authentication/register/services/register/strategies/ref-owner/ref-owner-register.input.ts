@@ -1,4 +1,4 @@
-import type { RegisteredAs } from '../../../../domain/enums/registered-as.enum';
+import type { RegisteredAs } from '../../../../../shared/domain/enums/registered-as.enum';
 import type { UserIdentity } from '../../../../domain/models/user-identity.model';
 
 /** What RefOwnerRegistrationStrategy needs: the name comes from here (S9), the mobile from the invitation. */

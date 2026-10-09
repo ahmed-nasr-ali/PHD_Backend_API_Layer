@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { zodBody } from '../../../core/validation/presets';
+import { zodBody } from '../../../../core/validation/presets';
 import type { RegisterDto } from '../dto/register.dto';
 import { registerSchema } from '../dto/register.dto';
 import { RegisterResponseDto } from '../dto/register-response.dto';
@@ -8,7 +8,7 @@ import type { RegisterInput } from '../services/register.input';
 import { RegisterService } from '../services/register.service';
 
 @Controller('auth')
-export class AuthenticationController {
+export class RegisterController {
   constructor(private readonly register: RegisterService) {}
 
   /** Creates the user (or completes an unfinished one): 201. */
