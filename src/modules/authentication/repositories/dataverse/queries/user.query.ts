@@ -11,5 +11,6 @@ export const USER_COLUMNS: (keyof UserTableRow)[] = [
   'com_birthdate',
   'com_registeredas',
   'statuscode',
+  'statecode',
   'com_profilepicturefilepath',
 ];

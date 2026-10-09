@@ -12,6 +12,7 @@ export interface UserTableRow {
   com_birthdate: string | null; // ISO date
   com_registeredas: number | null;
   statuscode: number | null;
+  statecode: number | null;
   com_profilepicturefilepath: string | null;
 }
 
@@ -25,6 +26,7 @@ export interface UserTableWriteRow {
   com_passportnumber: string | null;
   com_birthdate: string | null; // YYYY-MM-DD
   com_registeredas: number;
+  /** Always an Active-state status (Under Review): a deactivated user is never reused, so no statecode is written. */
   statuscode: number;
   com_appnotificationtoken: string;
   /** true → a CRM plugin generates com_otp + its expiry and sends the SMS. */

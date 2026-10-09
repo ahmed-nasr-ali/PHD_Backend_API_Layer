@@ -81,6 +81,7 @@ One endpoint for every user type. The body carries `type`; each type has its own
 | S25 | Email | trimmed, case kept (we never search by email) | 2026-10-08 |
 | S26 | Link the invitation to the new user | yes, at register: `com_LinkedUser@odata.bind` on the invitation (the app does it right after create). The invitation stays Confirmed; Completed + `com_acceptedon` come after the documents (S15). Re-register links again (same user) | 2026-10-08 |
 | S27 | Invited user, but the found user is **complete** | `USER_EXISTS` (go log in) + close the invitation like the app: Completed (statecode 1 / statuscode 2) + `com_acceptedon`, **not** linked to the existing user. "Found" = by the mobile or the ID (changed 2026-10-09 with S18). The other `USER_EXISTS` cases (2+ records with none complete, unfinished other type) leave the invitation Confirmed | 2026-10-09 |
+| S28 | A found user is deactivated (`statecode` Inactive) | can't register again: 403 `USER_DEACTIVATED` ("This account is deactivated. Please contact support"), checked before anything else; nothing is written, the invitation stays Confirmed | 2026-10-09 |
 | S17 | National ID / passport shape | `identity: { kind: 'national' \| 'passport', number }` | 2026-10-08 |
 
 ### Open

@@ -5,3 +5,11 @@ export enum UserStatus {
   Rejected = 181410001,
   Deactivated = 2,
 }
+
+/** CRM `com_users.statecode`. A status is written together with its state. */
+export enum UserState {
+  /** Under Review, Approved, Rejected */
+  Active = 0,
+  /** Deactivated */
+  Inactive = 1,
+}

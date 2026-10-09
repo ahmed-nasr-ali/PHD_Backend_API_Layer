@@ -1,5 +1,5 @@
 import { RegisteredAs } from '../enums/registered-as.enum';
-import { UserStatus } from '../enums/user-status.enum';
+import { UserState, UserStatus } from '../enums/user-status.enum';
 import { UserIdentity } from './user-identity.model';
 import { UserProps } from './user.props';
 
@@ -12,6 +12,7 @@ export class User {
   readonly birthDate: Date | null;
   readonly registeredAs: RegisteredAs | null;
   readonly status: UserStatus | null;
+  private readonly state: UserState | null;
   private readonly profilePicturePath: string | null;
 
   private constructor(props: UserProps) {
@@ -23,6 +24,7 @@ export class User {
     this.birthDate = props.birthDate;
     this.registeredAs = props.registeredAs;
     this.status = props.status;
+    this.state = props.state;
     this.profilePicturePath = props.profilePicturePath;
   }
 
@@ -34,5 +36,10 @@ export class User {
   /** selfie uploaded → complete · no selfie → unfinished (same rule as the app today) */
   get isProfileComplete(): boolean {
     return Boolean(this.profilePicturePath);
+  }
+
+  /** statecode Inactive → deactivated by the CRM team · Active or unknown → not deactivated */
+  get isDeactivated(): boolean {
+    return this.state === UserState.Inactive;
   }
 }

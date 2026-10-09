@@ -8,6 +8,7 @@ import { PhdAccountTableMapper } from './phd-account.table-mapper';
 import { PHD_ACCOUNT_COLUMNS } from './queries/phd-account.query';
 import {
   PHD_ACCOUNT_TABLE,
+  PhdAccountSearchColumns,
   PhdAccountTableRow,
 } from './tables/phd-account.table';
 
@@ -27,7 +28,7 @@ export class DataversePhdAccountRepository extends PhdAccountRepository {
     mobile: string,
     identity: UserIdentity,
   ): Promise<PhdAccount[]> {
-    const identityColumn =
+    const identityColumn: keyof PhdAccountSearchColumns =
       identity.kind === IdentityKind.National
         ? 'new_cbrnumber'
         : 'blser_passportno';

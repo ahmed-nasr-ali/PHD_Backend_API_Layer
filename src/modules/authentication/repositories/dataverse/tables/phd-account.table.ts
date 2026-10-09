@@ -5,3 +5,10 @@ export const PHD_ACCOUNT_TABLE = 'accounts';
 export interface PhdAccountTableRow {
   accountid: string;
 }
+
+/** `accounts` columns register searches by ($filter only, never read back). */
+export interface PhdAccountSearchColumns {
+  new_mobilenumber: string | null;
+  new_cbrnumber: string | null; // national ID
+  blser_passportno: string | null;
+}

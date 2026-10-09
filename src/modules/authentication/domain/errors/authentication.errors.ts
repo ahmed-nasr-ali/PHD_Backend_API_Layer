@@ -13,6 +13,18 @@ export class UserExistsError extends BusinessError {
   }
 }
 
+/** The CRM team deactivated this account: registering again can't bring it back. */
+export class UserDeactivatedError extends BusinessError {
+  readonly kind = BusinessErrorKind.Forbidden;
+
+  constructor() {
+    super(
+      'This account is deactivated. Please contact support',
+      AuthenticationErrorCode.UserDeactivated,
+    );
+  }
+}
+
 export class NotPhdCustomerError extends BusinessError {
   readonly kind = BusinessErrorKind.Forbidden;
 

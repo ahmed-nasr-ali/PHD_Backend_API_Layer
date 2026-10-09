@@ -1,10 +1,14 @@
 import { RegisteredAs } from '../enums/registered-as.enum';
-import { UserExistsError } from '../errors/authentication.errors';
+import {
+  UserDeactivatedError,
+  UserExistsError,
+} from '../errors/authentication.errors';
 import { User } from '../models/user.model';
 
 /**
  * Decides what register does with the users found in `com_users` (by the mobile OR the ID; both belong to one person).
  * nothing found → null (continue to create)
+ * · one of them deactivated (complete or not, any type) → USER_DEACTIVATED
  * · one unfinished user, same type (found by the mobile, the ID or both) → that user (reuse: its mobile, ID, … are overwritten)
  * · complete user, 2+ records, or unfinished with another type → USER_EXISTS
  *   (`hasCompleteAccount` = one of the found users is complete)
@@ -18,6 +22,10 @@ export function resolveExistingUser(
 ): User | null {
   if (found.length === 0) {
     return null;
+  }
+
+  if (found.some((u) => u.isDeactivated)) {
+    throw new UserDeactivatedError();
   }
 
   const [user] = found;

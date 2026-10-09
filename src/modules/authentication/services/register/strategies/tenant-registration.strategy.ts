@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
 import { UserStatus } from '../../../domain/enums/user-status.enum';
 import { User } from '../../../domain/models/user.model';
-import { TenantRegisterDto } from '../../../dto/register/tenant-register.dto';
 import { InvitedUserRegistrar } from '../invited-user-registrar';
 import { RegistrationInvitationVerifier } from '../registration-invitation.verifier';
 import { RegistrationStrategy } from '../registration.strategy';
+import type { TenantRegisterInput } from './tenant-register.input';
 
 /** Tenant: name + mobile from the invitation · no birth date */
 @Injectable()
@@ -20,23 +20,23 @@ export class TenantRegistrationStrategy extends RegistrationStrategy {
   }
 
   /** check the invitation → save the user (InvitedUserRegistrar handles the invitation) */
-  async execute(body: TenantRegisterDto): Promise<User> {
+  async execute(input: TenantRegisterInput): Promise<User> {
     const invitation = await this.invitationVerifier.verify(
-      body.code,
-      body.invitationId,
+      input.code,
+      input.invitationId,
       this.type,
     );
 
     return this.registrar.register(invitation.id, {
       name: invitation.name,
       mobile: invitation.mobile,
-      email: body.email,
-      password: body.password,
-      identity: body.identity,
+      email: input.email,
+      password: input.password,
+      identity: input.identity,
       birthDate: null,
       registeredAs: this.type,
       status: UserStatus.UnderReview,
-      notificationToken: body.notificationToken,
+      notificationToken: input.notificationToken,
     });
   }
 }

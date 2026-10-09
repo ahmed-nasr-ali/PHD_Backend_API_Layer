@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RegisteredAs } from '../../domain/enums/registered-as.enum';
+import type { RegisterInput } from '../register.input';
 import { RegistrationStrategy } from './registration.strategy';
 import { FamilyMemberRegistrationStrategy } from './strategies/family-member-registration.strategy';
 import { OwnerRegistrationStrategy } from './strategies/owner-registration.strategy';
@@ -11,7 +12,11 @@ import { TenantRegistrationStrategy } from './strategies/tenant-registration.str
 /** Gives the registration strategy for a user type. */
 @Injectable()
 export class RegistrationStrategyFactory {
-  private readonly strategies: RegistrationStrategy[];
+  /** One strategy per accepted type: a type without a strategy fails `tsc`, so `for()` never misses at runtime. */
+  private readonly strategies: Record<
+    RegisterInput['type'],
+    RegistrationStrategy
+  >;
 
   constructor(
     owner: OwnerRegistrationStrategy,
@@ -21,22 +26,18 @@ export class RegistrationStrategyFactory {
     ref: RefRegistrationStrategy,
     refOwner: RefOwnerRegistrationStrategy,
   ) {
-    this.strategies = [
-      owner,
-      familyMember,
-      tenantFamilyMember,
-      tenant,
-      ref,
-      refOwner,
-    ];
+    this.strategies = {
+      [RegisteredAs.Owner]: owner,
+      [RegisteredAs.FamilyMember]: familyMember,
+      [RegisteredAs.TenantFamilyMember]: tenantFamilyMember,
+      [RegisteredAs.Tenant]: tenant,
+      [RegisteredAs.Ref]: ref,
+      [RegisteredAs.RefOwner]: refOwner,
+    };
   }
 
-  /** a strategy handles this type → that strategy · none → Error (500, a bug: the DTO accepted a type nobody handles) */
-  for(type: RegisteredAs): RegistrationStrategy {
-    const strategy = this.strategies.find((s) => s.type === type);
-    if (!strategy) {
-      throw new Error(`No registration strategy for type ${type}`);
-    }
-    return strategy;
+  /** type → its strategy (always one: checked by the compiler, see `strategies`) */
+  for(type: RegisterInput): RegistrationStrategy {
+    return this.strategies[type.type];
   }
 }

@@ -56,5 +56,13 @@
 | 14b | `invitations`: `InvitationRepository.complete(id)` + Dataverse (`InvitationCompleteWriteRow`) | done |
 | 14c | `InvitedUserRegistrar`: save + link, or close on a complete user; the 5 strategies use it; module | done |
 | 15 | A record found by the national ID is the same person (S18): `resolveExistingUser` drops the same-mobile check; reuse overwrites the mobile too; `hasCompleteAccount` = any found user is complete. Isolated e2e: 33/33 pass | done |
+| 17 | Services take an Input, not a DTO: `services/register.input.ts` (union) + one `<type>-register.input.ts` next to each strategy; `birthDateSchema` turns the string into a `Date`; the controller passes the validated body as `RegisterInput` (checked by TypeScript). Isolated e2e: 33/33 pass | done |
+| 18 | Full review of the register cycle against the skills, then a flow-chart doc for the team lead | in progress |
+| 18a | Deactivated user (`statecode` Inactive) found → 403 `USER_DEACTIVATED`, nothing written, invitation untouched (`UserState` next to `UserStatus`, `statecode` read) | done |
+| 18b | Zod max lengths = `com_users` columns (name / email / password / passport 100, token 300); `PhdAccountSearchColumns` types the `accounts` filter column; comments on national-id / passport | done |
+| 18c | Dead code: unused `OwnerRegisterDto` import + 6 unused `<Type>RegisterDto` types | done |
+| 18d | Flow-chart doc of every register case for the team lead: https://claude.ai/artifact/PkrLJofCgcqje2YAsjHtni (private until shared) | done |
+| 18f | `RegistrationStrategyFactory`: `Record<RegisterInput['type'], RegistrationStrategy>` instead of array + `find` + `throw new Error` (a missing strategy fails `tsc`). Isolated e2e: 36/36 | done |
+| 18e | Skills: document the strategy + helpers pattern (`services/register/`) and the `User` without `create()` (S23) | todo |
 | 10 | Manual Postman test on phdtest of all 6 types. First round (invited, owner) passed; extra cases in `REGISTER_TEST_CASES.md` passed (2026-10-09) | done |
 | 16 | Clean-up before OTP: `birthDate` returns one message only (`abort: true`); remove the unused `isSameMobile` (file deleted, the 10 digits are inline in the 2 repositories) | done |

@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { familyMemberRegisterSchema } from './register/family-member-register.dto';
-import {
-  OwnerRegisterDto,
-  ownerRegisterSchema,
-} from './register/owner-register.dto';
+import { ownerRegisterSchema } from './register/owner-register.dto';
 import { refOwnerRegisterSchema } from './register/ref-owner-register.dto';
 import { refRegisterSchema } from './register/ref-register.dto';
 import { tenantFamilyMemberRegisterSchema } from './register/tenant-family-member-register.dto';

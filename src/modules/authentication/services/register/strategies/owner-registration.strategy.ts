@@ -3,10 +3,10 @@ import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
 import { UserStatus } from '../../../domain/enums/user-status.enum';
 import { User } from '../../../domain/models/user.model';
 import { ensurePhdCustomer } from '../../../domain/rules/ensure-phd-customer';
-import { OwnerRegisterDto } from '../../../dto/register/owner-register.dto';
 import { PhdAccountRepository } from '../../../repositories/phd-account.repository';
 import { RegistrationStrategy } from '../registration.strategy';
 import { UserRegistrar } from '../user-registrar';
+import type { OwnerRegisterInput } from './owner-register.input';
 
 /** Owner: everything from the form · must be a Palm Hills customer · gets an OTP */
 @Injectable()
@@ -25,17 +25,17 @@ export class OwnerRegistrationStrategy extends RegistrationStrategy {
    * · nobody found → no Palm Hills account → NOT_PHD_CUSTOMER · account found → create
    * · both cases → the CRM sends an OTP (requestOtp)
    */
-  async execute(body: OwnerRegisterDto): Promise<User> {
+  async execute(input: OwnerRegisterInput): Promise<User> {
     const data = {
-      name: body.name,
-      mobile: body.mobile,
-      email: body.email,
-      password: body.password,
-      identity: body.identity,
+      name: input.name,
+      mobile: input.mobile,
+      email: input.email,
+      password: input.password,
+      identity: input.identity,
       birthDate: null,
       registeredAs: this.type,
       status: UserStatus.UnderReview,
-      notificationToken: body.notificationToken,
+      notificationToken: input.notificationToken,
       requestOtp: true,
     };
 
@@ -43,8 +43,8 @@ export class OwnerRegistrationStrategy extends RegistrationStrategy {
 
     if (!existing) {
       const accounts = await this.phdAccounts.findByMobileOrIdentity(
-        body.mobile,
-        body.identity,
+        input.mobile,
+        input.identity,
       );
       ensurePhdCustomer(accounts);
     }

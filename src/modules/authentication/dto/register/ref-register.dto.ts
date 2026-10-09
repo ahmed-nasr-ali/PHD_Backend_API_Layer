@@ -18,5 +18,3 @@ export const refRegisterSchema = z.strictObject({
   password: passwordSchema,
   notificationToken: notificationTokenSchema,
 });
-
-export type RefRegisterDto = z.infer<typeof refRegisterSchema>;

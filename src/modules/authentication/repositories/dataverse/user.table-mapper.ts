@@ -1,7 +1,7 @@
 import { optionSetValue } from '../../../../core/dataverse';
 import { IdentityKind } from '../../domain/enums/identity-kind.enum';
 import { RegisteredAs } from '../../domain/enums/registered-as.enum';
-import { UserStatus } from '../../domain/enums/user-status.enum';
+import { UserState, UserStatus } from '../../domain/enums/user-status.enum';
 import { UserIdentity } from '../../domain/models/user-identity.model';
 import { UserRegistrationData } from '../../domain/models/user-registration-data.model';
 import { User } from '../../domain/models/user.model';
@@ -19,6 +19,7 @@ export class UserTableMapper {
       birthDate: row.com_birthdate ? new Date(row.com_birthdate) : null,
       registeredAs: optionSetValue(RegisteredAs, row.com_registeredas),
       status: optionSetValue(UserStatus, row.statuscode),
+      state: optionSetValue(UserState, row.statecode),
       profilePicturePath: row.com_profilepicturefilepath,
     });
   }

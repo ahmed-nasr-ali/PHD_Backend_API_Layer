@@ -16,5 +16,3 @@ export const ownerRegisterSchema = z.strictObject({
   password: passwordSchema,
   notificationToken: notificationTokenSchema,
 });
-
-export type OwnerRegisterDto = z.infer<typeof ownerRegisterSchema>;

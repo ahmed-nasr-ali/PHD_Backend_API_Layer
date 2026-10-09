@@ -18,7 +18,3 @@ export const tenantFamilyMemberRegisterSchema = z.strictObject({
   password: passwordSchema,
   notificationToken: notificationTokenSchema,
 });
-
-export type TenantFamilyMemberRegisterDto = z.infer<
-  typeof tenantFamilyMemberRegisterSchema
->;

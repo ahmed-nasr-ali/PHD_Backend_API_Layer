@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
 import { UserStatus } from '../../../domain/enums/user-status.enum';
 import { User } from '../../../domain/models/user.model';
-import { RefOwnerRegisterDto } from '../../../dto/register/ref-owner-register.dto';
 import { InvitedUserRegistrar } from '../invited-user-registrar';
 import { RegistrationInvitationVerifier } from '../registration-invitation.verifier';
 import { RegistrationStrategy } from '../registration.strategy';
+import type { RefOwnerRegisterInput } from './ref-owner-register.input';
 
 /** REF Owner: name from the form (S9) · mobile from the invitation · no birth date */
 @Injectable()
@@ -20,23 +20,23 @@ export class RefOwnerRegistrationStrategy extends RegistrationStrategy {
   }
 
   /** check the invitation → save the user (InvitedUserRegistrar handles the invitation) */
-  async execute(body: RefOwnerRegisterDto): Promise<User> {
+  async execute(input: RefOwnerRegisterInput): Promise<User> {
     const invitation = await this.invitationVerifier.verify(
-      body.code,
-      body.invitationId,
+      input.code,
+      input.invitationId,
       this.type,
     );
 
     return this.registrar.register(invitation.id, {
-      name: body.name,
+      name: input.name,
       mobile: invitation.mobile,
-      email: body.email,
-      password: body.password,
-      identity: body.identity,
+      email: input.email,
+      password: input.password,
+      identity: input.identity,
       birthDate: null,
       registeredAs: this.type,
       status: UserStatus.UnderReview,
-      notificationToken: body.notificationToken,
+      notificationToken: input.notificationToken,
     });
   }
 }
