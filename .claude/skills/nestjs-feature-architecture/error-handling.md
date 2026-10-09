@@ -8,7 +8,7 @@ Dataverse Web API failure
   → repository: 404 → null; known conflict → BusinessError; else rethrow
   → service: business outcomes → BusinessError
   → global filters                                  core/http/filters
-       BusinessError      → 404 / 409 / 422 / 403  code = error.code
+       BusinessError      → 404 / 409 / 422 / 403 / 429  code = error.code (429: + retryAfterSeconds)
        DataverseException → 503 (429/503) or 502   code = UPSTREAM_UNAVAILABLE, details logged, never exposed
        HttpException      → its own status          validation: VALIDATION_FAILED + errors (422 body, 400 query/params);
                                                     a 500 becomes INTERNAL_ERROR with a generic message
@@ -27,6 +27,9 @@ Every response, success or error, uses one envelope (built only by `ApiResponseB
 // validation error
 { "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
   "errors": [{ "field": "email", "message": "Invalid email address" }] }
+// try again later (RetryLaterError): the only error carrying retryAfterSeconds
+{ "success": false, "statusCode": 429, "code": "OTP_RESEND_TOO_SOON", "message": "Please wait 50 seconds before requesting a new code",
+  "data": null, "retryAfterSeconds": 50 }
 ```
 
 `code` is the stable value clients switch on; `message` is for display and may change. Adding envelope fields is safe; removing or renaming one is a breaking change.
@@ -44,6 +47,7 @@ export enum BusinessErrorKind {
   Conflict = 'conflict',
   RuleViolation = 'rule_violation',
   Forbidden = 'forbidden',
+  TooManyRequests = 'too_many_requests',
 }
 
 /** Base class for errors the business layers raise on purpose. Framework-free. */
@@ -59,9 +63,24 @@ export abstract class BusinessError extends Error {
     this.name = new.target.name;
   }
 }
+
+/** Allowed again after a wait: the caller learns how long (HTTP: 429 + `retryAfterSeconds` in the body). */
+export abstract class RetryLaterError extends BusinessError {
+  readonly kind = BusinessErrorKind.TooManyRequests;
+
+  constructor(
+    message: string,
+    code: string,
+    readonly retryAfterSeconds: number,
+  ) {
+    super(message, code);
+  }
+}
 ```
 
-A module declares **one** error-code enum, `domain/enums/<module>-error-code.enum.ts`, and **one** errors file, `domain/errors/<module>.errors.ts`, for all its entities. Never one enum or errors file per entity (e.g. the `authentication` module has `AuthenticationErrorCode` and `authentication.errors.ts` holding both `UserExistsError` and `NotPhdCustomerError`). `<module>` is the singular module name (`customers` → `customer`):
+"Wait and try again" errors extend `RetryLaterError` (kind and `retryAfterSeconds` come with it), never `BusinessError` with a hand-set `TooManyRequests` kind: the filter only adds `retryAfterSeconds` for `RetryLaterError`.
+
+A module declares **one** error-code enum, `domain/enums/<module>-error-code.enum.ts`, and **one** errors file, `domain/errors/<module>.errors.ts`, for all its entities. Never one enum or errors file per entity. `<module>` is the singular module name (`customers` → `customer`). A module split into feature folders (see `folder-structure.md`) keeps the one enum in `shared/domain/enums/` and has one errors file per feature (`authentication`: `AuthenticationErrorCode` in `shared/`; `register/domain/errors/register.errors.ts`, `otp/domain/errors/otp.errors.ts`; `shared/domain/errors/authentication.errors.ts` only for `UserDeactivatedError`, thrown by both):
 
 ```ts
 // domain/enums/customer-error-code.enum.ts
@@ -92,7 +111,7 @@ These already exist; features never touch them.
 | File | Role |
 | --- | --- |
 | `filters/api-exception.filter.ts` | abstract base (Template Method): `catch()` logs any response ≥ 500 (message from `describe()`, overridable) and writes the response through `HttpAdapterHost` (not Express); subclasses only implement `toResponse(exception): ApiErrorResponse` |
-| `filters/business-error.filter.ts` | `@Catch(BusinessError)`: `Record<BusinessErrorKind, HttpStatus>` → 404 / 409 / 422 / 403 |
+| `filters/business-error.filter.ts` | `@Catch(BusinessError)`: `Record<BusinessErrorKind, HttpStatus>` → 404 / 409 / 422 / 403 / 429; a `RetryLaterError` also gets `retryAfterSeconds` in the body |
 | `filters/dataverse-exception.filter.ts` | `@Catch(DataverseException)`: 503 / 502 `UPSTREAM_UNAVAILABLE`; overrides `describe()` to log the Dataverse status |
 | `filters/http-exception.filter.ts` | `@Catch(HttpException)`: keeps the exception's status; `code` from the body or the status name (`NOT_FOUND`); validation `errors` carried through; a `message` array becomes one `errors` entry per message; a 500 is answered with `INTERNAL_ERROR` and a generic message |
 | `filters/unhandled-exception.filter.ts` | `@Catch()`: 500 `INTERNAL_ERROR` with a generic message |
@@ -105,11 +124,14 @@ A filter is only a translation (logging and writing the response are inherited):
 @Catch(BusinessError)
 export class BusinessErrorFilter extends ApiExceptionFilter<BusinessError> {
   protected toResponse(error: BusinessError): ApiErrorResponse {
-    return ApiResponseBuilder.error(
+    const body = ApiResponseBuilder.error(
       STATUS_BY_KIND[error.kind],
       error.code,
       error.message,
     );
+    return error instanceof RetryLaterError
+      ? { ...body, retryAfterSeconds: error.retryAfterSeconds }
+      : body;
   }
 }
 ```
@@ -128,6 +150,7 @@ Domain and services throw an error with a `kind` + `code` only. **Each caller ma
 | `Conflict` | 409 | print message, exit 1 / skip as duplicate |
 | `NotFound` | 404 | print message, exit 1 |
 | `Forbidden` | 403 | print message, exit 1 |
+| `TooManyRequests` (`RetryLaterError`) | 429 + `retryAfterSeconds` | print message, exit 1 / requeue after `retryAfterSeconds` |
 
 ```ts
 // A CLI command calling the same service: no HTTP involved.

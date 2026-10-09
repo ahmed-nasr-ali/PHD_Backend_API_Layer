@@ -114,7 +114,7 @@ flowchart TB
     S3 -->|anything else| F2["DataverseExceptionFilter"]
     U["Service / Domain<br/>rule broken, not found"] --> AE
     AE --> F1["BusinessErrorFilter"]
-    F1 --> H1(["404 / 409 / 422 / 403<br/>code = error.code"])
+    F1 --> H1(["404 / 409 / 422 / 403 / 429<br/>code = error.code"])
     F2 --> H2(["502 / 503<br/>UPSTREAM_UNAVAILABLE"])
     V["zodBody / zodQuery / zodParam<br/>invalid request"] --> F3["HttpExceptionFilter"]
     F3 --> H3(["422 / 400<br/>VALIDATION_FAILED + errors"])

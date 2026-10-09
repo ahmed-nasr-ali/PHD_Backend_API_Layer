@@ -236,7 +236,7 @@ src/
 │       ├── http.module.ts                # registers the filters + interceptor (catch-all first)
 │       └── filter/
 │           ├── api-exception.filter.ts         # abstract base: writes the response
-│           ├── business-error.filter.ts        # BusinessError → 404 / 409 / 422 / 403
+│           ├── business-error.filter.ts        # BusinessError → 404 / 409 / 422 / 403 / 429
 │           ├── dataverse-exception.filter.ts   # DataverseException → 502 / 503
 │           ├── http-exception.filter.ts        # validation + Nest HttpException
 │           └── unhandled-exception.filter.ts   # anything else → 500

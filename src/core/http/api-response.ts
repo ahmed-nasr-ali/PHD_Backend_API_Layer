@@ -17,6 +17,8 @@ export interface ApiErrorResponse {
   message: string;
   data: null;
   errors?: FieldError[];
+  /** Only on 429: seconds to wait before trying again. */
+  retryAfterSeconds?: number;
 }
 
 export class ApiResponseBuilder {
