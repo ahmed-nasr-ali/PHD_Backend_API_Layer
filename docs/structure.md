@@ -51,7 +51,7 @@ src/
     │       ├── dataverse-customer.repository.ts   ⑦ ⑪ implementation
     │       ├── tables/customer.table.ts           ⑦ ⑪ 'contacts' + row type
     │       ├── queries/customer.query.ts          ⑦ $select columns
-    │       └── customer.table-mapper.ts           ⑨ toDomain   ⑪ toTableRow
+    │       └── mappers/customer.table-mapper.ts   ⑨ toDomain   ⑪ toTableRow
     └── mappers/
         └── customer-response.mapper.ts            ⑭ Customer → CustomerResponseDto
 ```
@@ -66,9 +66,9 @@ src/
 | ⑥ | `customer.repository.ts` | The service calls `findByEmail(email)` | |
 | ⑦ | `dataverse-customer.repository.ts` + `tables/customer.table.ts` + `queries/customer.query.ts` | The repository builds the query (table + `$select` + `$filter`) | |
 | ⑧ | `core/dataverse` | `DataverseClient` gets the token and sends the GET to `contacts` | 502 / 503 |
-| ⑨ | `customer.table-mapper.ts` | If a row came back, `toDomain` turns it into a `Customer`, and the service throws | 409 `EmailAlreadyInUseError` |
+| ⑨ | `mappers/customer.table-mapper.ts` | If a row came back, `toDomain` turns it into a `Customer`, and the service throws | 409 `EmailAlreadyInUseError` |
 | ⑩ | `customer.repository.ts` | The service calls `create(customer)` | |
-| ⑪ | `customer.table-mapper.ts` | `toTableRow(customer)` produces a `CustomerTableRow` | |
+| ⑪ | `mappers/customer.table-mapper.ts` | `toTableRow(customer)` produces a `CustomerTableRow` | |
 | ⑫ | `core/dataverse` | `DataverseClient` sends the POST to `contacts`, and the repository returns `void` | 502 / 503 |
 | ⑬ | `create-customer.service.ts` | The service returns the `Customer` it built in ⑤ | |
 | ⑭ | `customer-response.mapper.ts` | `toResponse()` produces `CustomerResponseDto` | |
@@ -290,7 +290,8 @@ modules/customers/
     ├── customer.repository.ts            # abstract class (what services use)
     └── dataverse/
         ├── dataverse-customer.repository.ts
-        ├── customer.table-mapper.ts      # Table ↔ Domain (option sets via optionSetValue)
+        ├── mappers/
+        │   └── customer.table-mapper.ts  # Table ↔ Domain (option sets via optionSetValue)
         ├── tables/
         │   └── customer.table.ts         # CUSTOMER_TABLE + CustomerTableRow (what Dataverse returns)
         └── queries/
@@ -339,7 +340,7 @@ modules/orders/
     ├── order.repository.ts
     └── dataverse/
         ├── dataverse-order.repository.ts
-        ├── order.table-mapper.ts         # choice → OrderStatus (optionSetValue), lookup ↔ customerId
+        ├── mappers/order.table-mapper.ts # choice → OrderStatus (optionSetValue), lookup ↔ customerId
         ├── tables/order.table.ts         # OrderTableRow (read) + OrderTableWriteRow (@odata.bind)
         └── queries/order.query.ts        # ORDER_COLUMNS
 ```
@@ -347,7 +348,7 @@ modules/orders/
 Rules:
 - `customers.module.ts` → `exports: [CustomerRepository]` (the abstract class, not the Dataverse implementation).
 - `orders` imports `customers`; `customers` never imports `orders`.
-- A service never calls another service.
+- A service never calls another service. The one exception is an operation with a flow per type (strategies, below).
 
 ---
 
@@ -366,10 +367,44 @@ modules/countries/
     ├── country.repository.ts
     └── dataverse/
         ├── dataverse-country.repository.ts
-        ├── country.table-mapper.ts
+        ├── mappers/country.table-mapper.ts
         ├── tables/country.table.ts
         └── queries/country.query.ts
 ```
+
+---
+
+## 4b. One operation with a flow per type (`authentication`, register)
+
+`POST /auth/register` serves six user types, each with its own fields and steps. The service hands the work to one strategy per type; the strategies share small helper classes. Real code: `src/modules/authentication/services/`.
+
+```text
+modules/authentication/services/
+├── register.service.ts                   # asks the factory for the strategy, runs it
+├── register.input.ts                     # RegisterInput = union of the six per-type inputs
+└── register/
+    ├── user-registrar.ts                 # helper: find an existing user, create or update
+    ├── invited-user-registrar.ts         # helper: save + link / close the invitation
+    ├── registration-invitation.verifier.ts   # helper: check the invitation
+    └── strategies/
+        ├── registration.strategy.ts      # contract: type + execute(input)
+        ├── registration-strategy.factory.ts  # Record<RegisterInput['type'], RegistrationStrategy>
+        ├── owner/
+        │   ├── owner-registration.strategy.ts
+        │   └── owner-register.input.ts
+        ├── family-member/                # same two files per type
+        ├── tenant-family-member/
+        ├── tenant/
+        ├── ref/
+        └── ref-owner/
+```
+
+Rules:
+- The controller passes the validated body (`z.discriminatedUnion('type')`) as `RegisterInput`; nothing in `services/` imports `dto/`.
+- The factory is a `Record` keyed by every accepted `type`: a type without a strategy fails `tsc`, so there is no `throw new Error`.
+- Strategies compose the helpers; they don't inherit from a base class with shared steps.
+
+Details: `.claude/skills/nestjs-feature-architecture/strategies.md`.
 
 ---
 
@@ -389,12 +424,12 @@ modules/customers/repositories/
 ├── customer.repository.ts                # unchanged
 ├── dataverse/                            # old (removed after the cut-over)
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table-mapper.ts
+│   ├── mappers/customer.table-mapper.ts
 │   ├── tables/customer.table.ts          # CUSTOMER_TABLE = 'contacts'
 │   └── queries/customer.query.ts
 └── postgres/                             # new
     ├── postgres-customer.repository.ts
-    ├── customer.table-mapper.ts
+    ├── mappers/customer.table-mapper.ts
     ├── tables/customer.table.ts          # CUSTOMER_TABLE = 'customers'
     └── queries/customer.query.ts
 ```
@@ -415,7 +450,7 @@ modules/customers/
 ├── domain/rules/<rule>.spec.ts                              # pure rules across models
 ├── services/create-customer.service.spec.ts                 # with an in-memory fake repository
 ├── repositories/customer.repository.contract.ts             # shared tests for every implementation
-└── repositories/dataverse/customer.table-mapper.spec.ts     # JSON → Domain
+└── repositories/dataverse/mappers/customer.table-mapper.spec.ts   # JSON → Domain
 
 test/
 └── customers.e2e-spec.ts                                    # HTTP end-to-end with fake repositories

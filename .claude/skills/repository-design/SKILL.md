@@ -27,10 +27,10 @@ modules/customers/repositories/
 ├── customer.repository.ts              abstract class (the port, DI token)
 ├── dataverse/                          implementation for Dataverse (today)
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table-mapper.ts
+│   ├── mappers/customer.table-mapper.ts
 │   ├── tables/customer.table.ts
 │   └── queries/customer.query.ts
-└── postgres/                           implementation for PostgreSQL (later, same file names)
+└── postgres/                           implementation for PostgreSQL (later, same file names and folders)
 ```
 
 ## Core concept

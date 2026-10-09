@@ -38,7 +38,7 @@ customers/
 ├── domain/               enums/ · models/ · errors/ · rules/ (one type per file)
 └── repositories/
     ├── customer.repository.ts      abstract class (the port)
-    └── dataverse/                  repository + table-mapper + tables/ (row shapes) + queries/ ($select, $expand)
+    └── dataverse/                  repository + tables/ (row shapes) + queries/ ($select, $expand) + mappers/ (table-mappers)
 ```
 
 Full tree and naming: [folder-structure.md](folder-structure.md).
@@ -122,6 +122,7 @@ return { customer, recentOrders };
 - `@Injectable()` on services is an accepted pragmatic coupling. The domain stays NestJS-free.
 - Cross-feature use: the depending module imports the other module, which **exports its abstract repository** (`exports: [CustomerRepository]`). Put a cross-feature service in the module that already depends on the other. Never create circular imports.
 - A service never calls another service. Shared logic goes into the domain model or a repository method.
+- **Exception: one operation with a different flow per type** (e.g. register for six user types). The service hands the work to one **strategy** per type, picked by a factory; the strategies share small **helper** classes (a verifier, a registrar). They all live in `services/<operation>/` and are one use case, not services calling services. See [strategies.md](strategies.md).
 - Global filters and the response interceptor are registered once in `src/core/http/http.module.ts` (imported by `AppModule`). Features never register filters and never build the response envelope; controllers return response DTOs.
 
 ## CRM considerations
@@ -162,7 +163,10 @@ See [common-mistakes.md](common-mistakes.md). The top five:
 - [ ] `domain/` split into `enums/`, `models/`, `errors/` (+ `rules/` when needed), one type per file (exception: an entity's `<Entity>Status` + `<Entity>State` share `<entity>-status.enum.ts`)
 - [ ] Error codes and option-set values used through enum members, never bare strings/numbers
 - [ ] One service per operation, `execute(input)`; Input type in `<verb>-<entity>.input.ts` next to it
+- [ ] Nothing in `services/` imports `dto/` (strategies included)
+- [ ] Per-type flows: strategies in `services/<operation>/strategies/<type>/`, factory keyed by `Record<Input['type'], Strategy>` (no `find` + `throw new Error`), see [strategies.md](strategies.md)
 - [ ] Service depends only on abstract repositories and `domain/`
+- [ ] A `statuscode` is written together with its `statecode`, and records in an inactive state are never silently reused
 - [ ] Independent remote reads use `Promise.all`
 - [ ] Errors extend `BusinessError` with a `kind` and `code`
 - [ ] Repository bound with `{ provide: CustomerRepository, useClass: DataverseCustomerRepository }`; module exports the abstract class, not the implementation

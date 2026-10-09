@@ -42,11 +42,31 @@ src/
             ├── customer.repository.ts            abstract class (port + DI token)
             └── dataverse/
                 ├── dataverse-customer.repository.ts
-                ├── customer.table-mapper.ts      Table ↔ Domain
+                ├── mappers/                      Table ↔ Domain
+                │   └── customer.table-mapper.ts  CustomerTableMapper
                 ├── tables/                       what Dataverse returns: one file per CRM table
                 │   └── customer.table.ts         CUSTOMER_TABLE + CustomerTableRow
                 └── queries/                      what we ask for
                     └── customer.query.ts         CUSTOMER_COLUMNS ($select) + CUSTOMER_EXPAND ($expand)
+```
+
+### An operation with a flow per type
+
+When one endpoint has a different flow for each kind of caller, the service delegates to strategies (see [strategies.md](strategies.md)):
+
+```text
+services/
+├── register.service.ts                   picks the strategy, runs it
+├── register.input.ts                     RegisterInput = union of the per-type inputs
+└── register/
+    ├── user-registrar.ts                 helpers shared by the strategies
+    ├── registration-invitation.verifier.ts
+    └── strategies/
+        ├── registration.strategy.ts      contract (type + execute)
+        ├── registration-strategy.factory.ts   Record<RegisterInput['type'], RegistrationStrategy>
+        └── owner/                        one folder per type
+            ├── owner-registration.strategy.ts
+            └── owner-register.input.ts
 ```
 
 ## What each word means
@@ -75,6 +95,10 @@ src/
 | Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (+ its Result type, if it isn't a domain object) |
 | Service input | `services/<verb>-<entity>.input.ts` | `CreateCustomerInput` |
+| Strategy (one per type) | `services/<operation>/strategies/<type>/<type>-<operation>.strategy.ts` | `OwnerRegistrationStrategy` |
+| Strategy input | `services/<operation>/strategies/<type>/<type>-<verb>.input.ts` | `OwnerRegisterInput` |
+| Strategy contract + factory | `services/<operation>/strategies/<operation>.strategy.ts`, `<operation>-strategy.factory.ts` | `RegistrationStrategy`, `RegistrationStrategyFactory` |
+| Helper shared by strategies | `services/<operation>/<role>.ts` | `UserRegistrar`, `RegistrationInvitationVerifier` |
 | Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
 | Param DTO | `dto/<entity>-id.dto.ts` | `customerIdSchema` |
 | Response DTO | `dto/<entity>-response.dto.ts` | `CustomerResponseDto` |
@@ -84,8 +108,8 @@ src/
 | Table (row shape) | `repositories/dataverse/tables/<entity>[-<table>].table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow`; a related table read through an expand gets the entity prefix: `InvitationCompoundTableRow` |
 | Table write shape (if different) | same file | `OrderTableWriteRow` |
 | Query | `repositories/dataverse/queries/<entity>.query.ts` | `CUSTOMER_COLUMNS`, `CUSTOMER_EXPAND` |
-| Table mapper | `repositories/dataverse/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
-| SQL later | `repositories/postgres/…` | same names: `<entity>.table.ts`, `<entity>.table-mapper.ts`, `Postgres<Entity>Repository` |
+| Table mapper | `repositories/dataverse/mappers/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
+| SQL later | `repositories/postgres/…` | same names and folders: `tables/<entity>.table.ts`, `mappers/<entity>.table-mapper.ts`, `Postgres<Entity>Repository` |
 
 ## Rules
 
@@ -98,4 +122,5 @@ src/
 - A feature without business rules may omit `domain/`.
 - One type per file inside `domain/`: each enum, model and props type has its own file.
 - Error codes and CRM option-set values are always enum members (`InvitedAs.Helpers`), never bare strings or numbers.
-- `tables/` describes what Dataverse returns; `queries/` describes what we ask for. "schema" is never used for them: it stays reserved for Zod in `dto/`.
+- `tables/` describes what Dataverse returns; `queries/` describes what we ask for; `mappers/` translates rows to the domain and back. "schema" is never used for them: it stays reserved for Zod in `dto/`.
+- `repositories/dataverse/mappers/` (table-mappers) and the module's top-level `mappers/` (response mappers) are different layers; the file suffix tells them apart (`.table-mapper.ts` vs `-response.mapper.ts`).

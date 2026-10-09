@@ -9,12 +9,12 @@ modules/customers/repositories/
 ├── customer.repository.ts                    abstract (unchanged)
 ├── dataverse/
 │   ├── dataverse-customer.repository.ts
-│   ├── customer.table-mapper.ts
+│   ├── mappers/customer.table-mapper.ts
 │   ├── tables/customer.table.ts              CUSTOMER_TABLE = 'contacts'
 │   └── queries/customer.query.ts             CUSTOMER_COLUMNS ($select)
 └── postgres/
     ├── postgres-customer.repository.ts
-    ├── customer.table-mapper.ts
+    ├── mappers/customer.table-mapper.ts
     ├── tables/customer.table.ts              CUSTOMER_TABLE = 'customers'
     └── queries/customer.query.ts             CUSTOMER_COLUMNS (SQL select list)
 ```
@@ -66,7 +66,7 @@ import { DatabaseError, Pool } from 'pg';
 import { EmailAlreadyInUseError } from '../../domain/errors/customer.errors';
 import { Customer } from '../../domain/models/customer.model';
 import { CustomerRepository } from '../customer.repository';
-import { CustomerTableMapper } from './customer.table-mapper';
+import { CustomerTableMapper } from './mappers/customer.table-mapper';
 import { CUSTOMER_COLUMNS } from './queries/customer.query';
 import { CUSTOMER_TABLE, CustomerTableRow } from './tables/customer.table';
 
@@ -140,7 +140,7 @@ const row = result.recordset[0];
 | --- | --- |
 | `pool.query()` returns a result object, not a row (`if (!row)` is never true) | `rows[0]` (pg) / `recordset[0]` (mssql) |
 | `pg` parses `date` to a JS `Date` at **local** midnight | select `::text` (pg) / `CONVERT(char(10), …, 23)` (mssql) and parse as UTC |
-| SQL Server returns `uniqueidentifier` in **upper case** | lower-case ids in `customer.table-mapper.ts` |
+| SQL Server returns `uniqueidentifier` in **upper case** | lower-case ids in `mappers/customer.table-mapper.ts` |
 | PostgreSQL `=` is case-sensitive; Dataverse/SQL Server default collation is not | the domain lower-cases emails on `create()` |
 | Unique violation codes differ | pg `23505` (+ `constraint` name); mssql `RequestError.number` 2627 / 2601 → same `BusinessError` |
 | Offset paging is tempting in SQL | keep the cursor contract (keyset pagination) |

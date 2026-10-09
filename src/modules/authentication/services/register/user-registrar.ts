@@ -15,7 +15,7 @@ export class UserRegistrar {
     return this.write(existing, data);
   }
 
-  /** nobody found → null · one unfinished user, same type (by mobile or ID) → that user · anyone else → USER_EXISTS */
+  /** nobody found → null · deactivated → USER_DEACTIVATED · one unfinished user, same type (by mobile or ID) → that user · anyone else → USER_EXISTS */
   async findExisting(data: UserRegistrationData): Promise<User | null> {
     const found = await this.users.findByMobileOrIdentity(
       data.mobile,

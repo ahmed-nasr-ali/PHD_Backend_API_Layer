@@ -7,7 +7,7 @@
 | Domain models and rules | `domain/models/customer.model.spec.ts`, `domain/rules/<rule>.spec.ts` | plain unit tests | yes |
 | Services | `services/create-customer.service.spec.ts` | unit tests with an in-memory repository fake | yes |
 | Controllers / HTTP | `test/customers.e2e-spec.ts` | e2e with fake repositories bound in the testing module | yes |
-| Table-mappers | `repositories/dataverse/customer.table-mapper.spec.ts` | pure tests: real-looking JSON in, domain out (nulls, unknown choices) | removed with the implementation |
+| Table-mappers | `repositories/dataverse/mappers/customer.table-mapper.spec.ts` | pure tests: real-looking JSON in, domain out (nulls, unknown choices) | removed with the implementation |
 | Dataverse repositories | `repositories/dataverse/dataverse-customer.repository.spec.ts` | mocked `DataverseClient`: assert table, `$select`, filter, 404 → null | removed with the implementation |
 | Repository contract | `repositories/customer.repository.contract.ts` | one shared suite run against **every** implementation | yes, and it proves the new implementation matches |
 

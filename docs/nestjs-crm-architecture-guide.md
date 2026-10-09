@@ -57,8 +57,8 @@ The guide uses architecture terms (layer, use case, port). In the code, they map
 | Domain layer | `domain/` | `Customer`, `CustomerNotFoundError` |
 | Port (repository contract) | `repositories/<entity>.repository.ts` (abstract class) | `CustomerRepository` |
 | Infrastructure / adapter | `repositories/dataverse/` (later `repositories/postgres/`) | `DataverseCustomerRepository` |
-| Persistence model | `repositories/dataverse/<entity>.table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow` |
-| Persistence mapper | `repositories/dataverse/<entity>.table-mapper.ts` | `CustomerTableMapper` |
+| Persistence model | `repositories/dataverse/tables/<entity>.table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow` |
+| Persistence mapper | `repositories/dataverse/mappers/<entity>.table-mapper.ts` | `CustomerTableMapper` |
 
 The word **schema** is reserved for Zod validation in `dto/`; Dataverse table shapes are called **table**. The full folder trees are in [`structure.md`](structure.md).
 
@@ -551,7 +551,7 @@ The notes call the Dataverse payload type `CrmUserDto`. "DTO" is already used fo
 - `repositories/dataverse/tables/customer.table.ts` holds the table name (`CUSTOMER_TABLE = 'contacts'`) and the row type (`CustomerTableRow`); each related table read through an `$expand` gets its own file, prefixed with the querying entity (`InvitationCompoundTableRow`),
 - `repositories/dataverse/queries/customer.query.ts` holds what we ask for: the column list (`CUSTOMER_COLUMNS`) and the `$expand` (`CUSTOMER_EXPAND`),
 - when writes need a different shape (lookups), the table file adds `OrderTableWriteRow`,
-- `repositories/dataverse/customer.table-mapper.ts` holds `CustomerTableMapper` (Table ↔ Domain),
+- `repositories/dataverse/mappers/customer.table-mapper.ts` holds `CustomerTableMapper` (Table ↔ Domain),
 - a future `repositories/postgres/` uses **the same file names**.
 
 The files are named after the business entity (`customer`), not the Dataverse table (`contact`). The real table name appears once, as the constant.
@@ -769,7 +769,7 @@ A `UserService` that calls repositories is **not** a domain service in the DDD s
 | `CustomersService` with many methods | fewer files; familiar to NestJS developers | grows into a god class; every method's dependencies are injected into all; cross-entity operations (dashboard) have no natural home |
 | **One `<Verb><Entity>Service` class per operation** | small, focused, explicit dependencies, easy to test; cross-entity operations fit naturally | more files |
 
-**Choose one service class per operation** (`CreateCustomerService`, `GetCustomerService`, `PlaceOrderService`, `GetCustomerOverviewService`), each in its own file under `services/` with a single `execute(input)` method. The rule is simple enough for an AI agent to follow consistently, and the notes' dashboard example already shows why a per-entity service breaks down. A service never calls another service; shared logic goes into `domain/` or a repository method.
+**Choose one service class per operation** (`CreateCustomerService`, `GetCustomerService`, `PlaceOrderService`, `GetCustomerOverviewService`), each in its own file under `services/` with a single `execute(input)` method. The rule is simple enough for an AI agent to follow consistently, and the notes' dashboard example already shows why a per-entity service breaks down. A service never calls another service; shared logic goes into `domain/` or a repository method. The one exception is an operation whose flow differs per type (register for six user types): the service picks a **strategy** per type through a factory, and the strategies share small helper classes, all inside `services/<operation>/` (see `docs/structure.md` § 4b and the `nestjs-feature-architecture` skill → `strategies.md`).
 
 ### The dashboard example, corrected
 
@@ -918,7 +918,8 @@ customers/repositories/
 ├── customer.repository.ts                   abstract (what services see)
 └── dataverse/
     ├── dataverse-customer.repository.ts     extends CustomerRepository, uses DataverseClient
-    ├── customer.table-mapper.ts             CustomerTableMapper: Table ↔ Domain
+    ├── mappers/                             Table ↔ Domain
+    │   └── customer.table-mapper.ts         CustomerTableMapper
     ├── tables/                              what Dataverse returns: one file per CRM table
     │   └── customer.table.ts                CUSTOMER_TABLE + CustomerTableRow
     └── queries/                             what we ask for
@@ -993,11 +994,11 @@ Always `$select` explicit columns. Without it Dataverse returns every column, wh
 ### The table-mapper: Table ↔ Domain
 
 ```ts
-// customers/repositories/dataverse/customer.table-mapper.ts
-import { DataverseException, optionSetValue } from '../../../../core/dataverse';
-import { CustomerStatus } from '../../domain/enums/customer-status.enum';
-import { Customer } from '../../domain/models/customer.model';
-import { CustomerTableRow } from './tables/customer.table';
+// customers/repositories/dataverse/mappers/customer.table-mapper.ts
+import { DataverseException, optionSetValue } from '../../../../../core/dataverse';
+import { CustomerStatus } from '../../../domain/enums/customer-status.enum';
+import { Customer } from '../../../domain/models/customer.model';
+import { CustomerTableRow } from '../tables/customer.table';
 
 /** Translates between the Dataverse table row and the Customer domain model. */
 export class CustomerTableMapper {
@@ -1090,12 +1091,12 @@ export const ORDER_COLUMNS: (keyof OrderTableRow)[] = [
 ```
 
 ```ts
-// orders/repositories/dataverse/order.table-mapper.ts
-import { optionSetValue } from '../../../../core/dataverse';
-import { CUSTOMER_TABLE } from '../../../customers/repositories/dataverse/tables/customer.table';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
-import { Order } from '../../domain/models/order.model';
-import { OrderTableRow, OrderTableWriteRow } from './tables/order.table';
+// orders/repositories/dataverse/mappers/order.table-mapper.ts
+import { optionSetValue } from '../../../../../core/dataverse';
+import { CUSTOMER_TABLE } from '../../../../customers/repositories/dataverse/tables/customer.table';
+import { OrderStatus } from '../../../domain/enums/order-status.enum';
+import { Order } from '../../../domain/models/order.model';
+import { OrderTableRow, OrderTableWriteRow } from '../tables/order.table';
 
 /** Translates between the Dataverse table row and the Order domain model. */
 export class OrderTableMapper {
@@ -1135,7 +1136,7 @@ import {
 } from '../../../../core/dataverse';
 import { Customer } from '../../domain/models/customer.model';
 import { CustomerRepository } from '../customer.repository';
-import { CustomerTableMapper } from './customer.table-mapper';
+import { CustomerTableMapper } from './mappers/customer.table-mapper';
 import { CUSTOMER_COLUMNS } from './queries/customer.query';
 import { CUSTOMER_TABLE, CustomerTableRow } from './tables/customer.table';
 
@@ -1693,7 +1694,7 @@ src/
     │       ├── customer.repository.ts            # abstract class (port + DI token)
     │       └── dataverse/
     │           ├── dataverse-customer.repository.ts
-    │           ├── customer.table-mapper.ts      # Table ↔ Domain
+    │           ├── mappers/customer.table-mapper.ts  # Table ↔ Domain
     │           ├── tables/customer.table.ts      # CUSTOMER_TABLE + CustomerTableRow
     │           └── queries/customer.query.ts     # CUSTOMER_COLUMNS (+ CUSTOMER_EXPAND)
     └── orders/
@@ -1772,7 +1773,7 @@ Failure paths:
 | Domain (`Customer`, `Order`) | plain unit tests, no Nest | yes, unchanged |
 | Services | unit tests with **in-memory fakes** of the abstract repositories | yes, unchanged |
 | Response mappers / controllers | unit tests or e2e with fake repositories | yes |
-| Table-mappers (`customer.table-mapper.ts`) | pure unit tests: table row JSON in, domain out (nulls, unknown choices) | removed with `repositories/dataverse/` |
+| Table-mappers (`mappers/customer.table-mapper.ts`) | pure unit tests: table row JSON in, domain out (nulls, unknown choices) | removed with `repositories/dataverse/` |
 | Dataverse repositories | unit tests with a mocked `DataverseClient`: check filters, `$select`, 404 → null | removed with `repositories/dataverse/` |
 | **Repository contract tests** | one shared test suite run against every implementation of an abstract repository | **yes, and this is what proves the new repository behaves like the old one** |
 
@@ -1818,8 +1819,8 @@ A relational repository is **another implementation of the same abstract reposit
 
 ```text
 customers/repositories/
-├── dataverse/   dataverse-customer.repository.ts   tables/customer.table.ts   queries/customer.query.ts   customer.table-mapper.ts
-└── postgres/    postgres-customer.repository.ts    tables/customer.table.ts   queries/customer.query.ts   customer.table-mapper.ts
+├── dataverse/   dataverse-customer.repository.ts   tables/customer.table.ts   queries/customer.query.ts   mappers/customer.table-mapper.ts
+└── postgres/    postgres-customer.repository.ts    tables/customer.table.ts   queries/customer.query.ts   mappers/customer.table-mapper.ts
 ```
 
 ### Schema (PostgreSQL)
@@ -1926,7 +1927,7 @@ const row = result.recordset[0];
 ```
 
 - Unique violations are error numbers **2627** (constraint) / **2601** (unique index) on `sql.RequestError`.
-- SQL Server returns `uniqueidentifier` values in **upper case**; Dataverse and PostgreSQL use lower case. Normalise ids (`id.toLowerCase()`) in `customer.table-mapper.ts`, or id comparisons across sources will fail.
+- SQL Server returns `uniqueidentifier` values in **upper case**; Dataverse and PostgreSQL use lower case. Normalise ids (`id.toLowerCase()`) in `mappers/customer.table-mapper.ts`, or id comparisons across sources will fail.
 - String comparison is case-insensitive under the default collation (like Dataverse), but case-sensitive in PostgreSQL. Lowercasing emails in the domain (`Customer.create`) makes all three behave the same.
 
 ### ORM or no ORM later?
@@ -1945,7 +1946,7 @@ Not decided now, and not needed now. The port allows any of `pg`/`mssql` directl
 | --- | --- | --- |
 | 1 | Which interfaces remain unchanged? | `CustomerRepository`, `OrderRepository` (abstract repositories), all `Input`/`Result` types. |
 | 2 | Which implementation is replaced? | `DataverseOrderRepository` → `PostgresOrderRepository` first; later `DataverseCustomerRepository` → `PostgresCustomerRepository`. |
-| 3 | Which mapper changes? | none is *changed*: `repositories/dataverse/order.table-mapper.ts` is deleted and `repositories/postgres/order.table-mapper.ts` is added. Response mappers are untouched. |
+| 3 | Which mapper changes? | none is *changed*: `repositories/dataverse/mappers/order.table-mapper.ts` is deleted and `repositories/postgres/mappers/order.table-mapper.ts` is added. Response mappers are untouched. |
 | 4 | Which modules remain unchanged? | `domain/`, `services/`, `controllers/`, `dto/`, `mappers/`, `core/validation`, `BusinessErrorFilter`. Feature modules change **one provider line** (and their technology import). |
 | 5 | Which tests remain useful? | all domain and service tests; e2e tests with fakes; **repository contract tests**, which now run against `PostgresOrderRepository` too. |
 | 6 | Which CRM-specific code can be removed? | `repositories/dataverse/` of migrated features; eventually `core/dataverse`, `DataverseExceptionFilter`, MSAL config and `DV_*` env vars. |

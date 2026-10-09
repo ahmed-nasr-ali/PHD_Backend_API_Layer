@@ -7,12 +7,12 @@ Dataverse JSON ─► <Entity>TableRow ─► <Entity>TableMapper.toDomain ─�
 Entity ─► <Entity>TableMapper.toTableRow ─► Dataverse JSON                                (write)
 ```
 
-The table-mapper lives in `modules/<feature>/repositories/dataverse/<entity>.table-mapper.ts` and is used only by the Dataverse repository. Row types live in `repositories/dataverse/tables/`. Response mapping (domain → HTTP) is a different mapper, in `mappers/<entity>-response.mapper.ts`.
+The table-mapper lives in `modules/<feature>/repositories/dataverse/mappers/<entity>.table-mapper.ts` (next to `tables/` and `queries/`) and is used only by the Dataverse repository. Row types live in `repositories/dataverse/tables/`. Response mapping (domain → HTTP) is a different mapper, in `mappers/<entity>-response.mapper.ts`.
 
 | | `CustomerTableMapper` | `CustomerResponseMapper` |
 | --- | --- | --- |
 | Converts | Table ↔ Domain | Domain → Response DTO |
-| Folder | `repositories/dataverse/` | `mappers/` |
+| Folder | `repositories/dataverse/mappers/` | `mappers/` (module root) |
 | Changes when | Dataverse renames a column | the frontend wants a new JSON shape |
 | Direction | both (read and write) | one way (response only) |
 
@@ -32,11 +32,11 @@ export enum CustomerStatus {
 ```
 
 ```ts
-// repositories/dataverse/customer.table-mapper.ts
-import { DataverseException, optionSetValue } from '../../../../core/dataverse';
-import { CustomerStatus } from '../../domain/enums/customer-status.enum';
-import { Customer } from '../../domain/models/customer.model';
-import { CustomerTableRow } from './tables/customer.table';
+// repositories/dataverse/mappers/customer.table-mapper.ts
+import { DataverseException, optionSetValue } from '../../../../../core/dataverse';
+import { CustomerStatus } from '../../../domain/enums/customer-status.enum';
+import { Customer } from '../../../domain/models/customer.model';
+import { CustomerTableRow } from '../tables/customer.table';
 
 /** Translates between the Dataverse table row and the Customer domain model. */
 export class CustomerTableMapper {
@@ -120,12 +120,12 @@ export const ORDER_COLUMNS: (keyof OrderTableRow)[] = [
 ```
 
 ```ts
-// repositories/dataverse/order.table-mapper.ts
-import { optionSetValue } from '../../../../core/dataverse';
-import { CUSTOMER_TABLE } from '../../../customers/repositories/dataverse/tables/customer.table';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
-import { Order } from '../../domain/models/order.model';
-import { OrderTableRow, OrderTableWriteRow } from './tables/order.table';
+// repositories/dataverse/mappers/order.table-mapper.ts
+import { optionSetValue } from '../../../../../core/dataverse';
+import { CUSTOMER_TABLE } from '../../../../customers/repositories/dataverse/tables/customer.table';
+import { OrderStatus } from '../../../domain/enums/order-status.enum';
+import { Order } from '../../../domain/models/order.model';
+import { OrderTableRow, OrderTableWriteRow } from '../tables/order.table';
 
 /** Translates between the Dataverse table row and the Order domain model. */
 export class OrderTableMapper {

@@ -117,6 +117,27 @@ export class Customer {
 | Option sets are enums in `domain/enums/` with the CRM values; code compares enum members (`CustomerStatus.Active`), never bare numbers | readable rules; the values match Dataverse without a translation table |
 | Unknown or empty option-set values become `null` (the table-mapper uses `optionSetValue`) | a value added in the CRM later makes the rule fail safely instead of passing as a wrong member |
 
+## A model without `create()`: the CRM makes the record
+
+Some records are created by the CRM, not built by us: Dataverse generates the id, plugins fill columns, and the API returns the saved row in the same request (`createAndRetrieve`). The register flow is the example (`authentication`):
+
+- `User` has only `restore()`: every `User` comes from a saved row.
+- What we send is a separate domain type, `UserRegistrationData` in `domain/models/user-registration-data.model.ts` (plain interface: name, mobile, identity, status, …). The strategy builds it; the repository writes it (`create(data)` / `update(id, data)`) and returns the saved `User`.
+- Creation rules that don't need stored data still run before the write (Zod for shape, `domain/rules/` for decisions such as `resolveExistingUser`).
+
+Use this only when the storage generates the id or computes columns you must read back. Otherwise follow `create()` + `randomUUID()` above.
+
+## Status and state
+
+A CRM `statuscode` belongs to exactly one `statecode` (Active / Inactive). Keep both enums in one file (`<entity>-status.enum.ts`: `UserStatus` + `UserState`), read both, and expose the meaning on the model rather than the numbers:
+
+```ts
+/** statecode Inactive → deactivated by the CRM team · Active or unknown → not deactivated */
+get isDeactivated(): boolean {
+  return this.state === UserState.Inactive;
+}
+```
+
 ## Domain errors
 
 Error codes are enum members, never hand-typed strings.

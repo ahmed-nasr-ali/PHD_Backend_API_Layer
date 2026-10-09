@@ -161,6 +161,45 @@ export class CustomersController {
 }
 ```
 
+## A body with several shapes (`discriminatedUnion`)
+
+When one endpoint accepts different fields per kind of caller (register: six user types), the body is a union picked by one field:
+
+```text
+dto/
+├── fields/<field>.schema.ts            one Zod schema per field (name, email, birthDate, …), reused by every shape
+├── register/<type>-register.dto.ts     one z.strictObject per type: type: z.literal(RegisteredAs.Owner), …
+└── register.dto.ts                     registerSchema = z.discriminatedUnion('type', [...]) + RegisterDto
+```
+
+- `z.strictObject` per shape: a missing field **and** an extra field are both 422.
+- Only `RegisterDto` (the union) is exported as a type; the per-shape files export only their schema.
+- The service side mirrors it: one Input per shape next to its strategy and a union `RegisterInput` (see `nestjs-feature-architecture` → `strategies.md`).
+
+**Turn values into their real types inside the schema**, so the parsed body already has the Input's shape. `zodBody` returns the parsed value (after `.transform`):
+
+```ts
+/** Date only, e.g. 1995-02-01 → a `Date` after validation · not YYYY-MM-DD → 422 (one message) · a future date → 422 */
+export const birthDateSchema = z.iso
+  .date({ error: 'Birth date must be YYYY-MM-DD', abort: true }) // abort: a bad format skips the next check
+  .refine((value) => new Date(value) <= new Date(), 'Birth date cannot be in the future')
+  .transform((value) => new Date(value));
+```
+
+Then the controller doesn't copy fields or switch on `type`; it assigns, and TypeScript checks every shape matches its Input:
+
+```ts
+@Post('register')
+async registerUser(@Body(zodBody(registerSchema)) dto: RegisterDto): Promise<RegisterResponseDto> {
+  // the validated body already has the input's shape (birthDate is a Date); TypeScript checks they match
+  const input: RegisterInput = dto;
+  const user = await this.register.execute(input);
+  return RegisterResponseMapper.toResponse(user);
+}
+```
+
+If a shape needs something the body doesn't have (params, the current user), build that Input inline as usual.
+
 ## NestJS implementation notes
 
 - **`import type` for Zod-inferred types used in decorated parameters** (`import type { CreateCustomerDto }`). This repo uses `isolatedModules` + `emitDecoratorMetadata`; a value import fails with TS1272. `tsc` catches it, so it can't slip through. Don't add a lint auto-fix for type imports: it can't see decorator metadata and may break DI imports.
@@ -171,7 +210,11 @@ export class CustomersController {
 
 ## CRM considerations
 
-- Mirror Dataverse column limits (max length, numeric ranges) in DTO schemas so that bad input fails as a clear 422, not as an opaque Dataverse 400 that surfaces as a 502.
+- Mirror Dataverse column limits (max length, numeric ranges) in DTO schemas so that bad input fails as a clear 422, not as an opaque Dataverse 400 that surfaces as a 502. Read the real limits from the metadata (browser, test environment), then put the column name in the field's comment (`longer than 100 (com_name column) → 422`):
+  ```
+  https://<org>.crm4.dynamics.com/api/data/v9.1/EntityDefinitions(LogicalName='<table logical name>')/Attributes/Microsoft.Dynamics.CRM.StringAttributeMetadata?$select=LogicalName,MaxLength&$filter=LogicalName eq '<column>' or LogicalName eq '<column>'
+  ```
+  `.trim()` comes before `.max()`, so spaces around the value don't count.
 - Validate Dataverse ids with `z.guid()` (not `z.uuid()`).
 - Uniqueness and existence can't be checked by Zod; they need the service plus a Dataverse **alternate key** for a guarantee.
 
@@ -192,6 +235,9 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 | Response shape changes edited in the domain | edit only `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
 | Controller returns `{ success: true, data: … }` itself | return the response DTO; `ResponseInterceptor` wraps it |
 | `zodQuery` on a route param | `zodParam` (same 400 behaviour, clearer intent) |
+| A union body passed to the service as its DTO type | Input per shape + union Input; `const input: XInput = dto` in the controller |
+| `new Date(dto.birthDate)` repeated in every strategy | `.transform` in the field schema, once |
+| A `refine` that runs on a value the format check already rejected (two messages for one mistake) | `abort: true` on the format check |
 
 ## Decision rules
 
@@ -205,7 +251,8 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 
 - [ ] Request schema in `dto/<verb>-<entity>.dto.ts`, with the `z.infer` type exported as `<Verb><Entity>Dto`
 - [ ] Body: `zodBody`; query: `zodQuery`; params: `zodParam`; ids: `z.guid()`
-- [ ] String limits match the Dataverse columns
+- [ ] String limits match the Dataverse columns (read from the metadata, column named in the comment)
+- [ ] Several body shapes: `z.discriminatedUnion` of `z.strictObject`s; one Input per shape; values turned into real types in the schema
 - [ ] Inferred types imported with `import type` in controllers
 - [ ] Controller builds the Input (body + params + user) and calls one service
 - [ ] Response type in `dto/<entity>-response.dto.ts`; mapping in `mappers/<entity>-response.mapper.ts`

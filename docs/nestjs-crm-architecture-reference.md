@@ -49,7 +49,7 @@ src/
     ├── domain/                           enums/ (one enum per file; an entity's Status + State share one file) · models/ (customer.model.ts, customer.props.ts) · errors/ (customer.errors.ts) · rules/
     └── repositories/
         ├── customer.repository.ts        abstract class
-        └── dataverse/                    dataverse-customer.repository.ts, customer.table-mapper.ts, tables/customer.table.ts, queries/customer.query.ts
+        └── dataverse/                    dataverse-customer.repository.ts, mappers/customer.table-mapper.ts, tables/customer.table.ts, queries/customer.query.ts
 ```
 
 Features without business rules may omit `domain/`.
@@ -67,6 +67,8 @@ Features without business rules may omit `domain/`.
 | Domain rule | `domain/rules/<rule>.ts` | `pickInvitationForCode` |
 | Service | `services/<verb>-<entity>.service.ts` | `CreateCustomerService` (`execute(input)`) |
 | Service input | `services/<verb>-<entity>.input.ts` (next to its service) | `CreateCustomerInput` |
+| Strategy (operation with a flow per type) | `services/<operation>/strategies/<type>/<type>-<operation>.strategy.ts` (+ `<type>-<verb>.input.ts`) | `OwnerRegistrationStrategy`, `OwnerRegisterInput` |
+| Strategy contract + factory | `services/<operation>/strategies/<operation>.strategy.ts`, `<operation>-strategy.factory.ts` | `RegistrationStrategy`, `RegistrationStrategyFactory` |
 | Request DTO | `dto/<verb>-<entity>.dto.ts` | `createCustomerSchema`, `CreateCustomerDto` |
 | Param DTO | `dto/<entity>-id.dto.ts` | `customerIdSchema` |
 | Response DTO | `dto/<entity>-response.dto.ts` | `CustomerResponseDto` |
@@ -75,7 +77,7 @@ Features without business rules may omit `domain/`.
 | Repository (Dataverse) | `repositories/dataverse/dataverse-<entity>.repository.ts` | `DataverseCustomerRepository` |
 | Table (row shape) | `repositories/dataverse/tables/<entity>[-<table>].table.ts` | `CUSTOMER_TABLE`, `CustomerTableRow` (+ `OrderTableWriteRow` when writes differ; expanded tables prefixed: `InvitationCompoundTableRow`) |
 | Query | `repositories/dataverse/queries/<entity>.query.ts` | `CUSTOMER_COLUMNS` ($select), `CUSTOMER_EXPAND` ($expand) |
-| Table mapper | `repositories/dataverse/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
+| Table mapper | `repositories/dataverse/mappers/<entity>.table-mapper.ts` | `CustomerTableMapper` (`toDomain`, `toTableRow`) |
 | PostgreSQL later | `repositories/postgres/…` | same file names; `PostgresCustomerRepository` |
 
 | Word | Means only |
@@ -135,7 +137,7 @@ constructor(private readonly customers: CustomerRepository) {}
 ```
 
 - No string tokens. No `new Repository(...)` in factories.
-- Cross-feature use: import the feature module and inject its exported abstract repository. No circular module imports. A service never calls another service.
+- Cross-feature use: import the feature module and inject its exported abstract repository. No circular module imports. A service never calls another service; the one exception is an operation with a flow per type, where the service delegates to strategies in `services/<operation>/strategies/` (see `docs/structure.md` § 4b).
 
 ---
 
@@ -228,7 +230,7 @@ Not covered by the abstraction (plan explicitly): data migration and/or sync, lo
 
 | Change | Edit only |
 | --- | --- |
-| Dataverse column renamed | `tables/<entity>.table.ts` + `queries/<entity>.query.ts` + `<entity>.table-mapper.ts` |
+| Dataverse column renamed | `tables/<entity>.table.ts` + `queries/<entity>.query.ts` + `mappers/<entity>.table-mapper.ts` |
 | Dataverse auth / URL / retry | `core/dataverse` |
 | Frontend wants a new response shape | `dto/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
 | Request shape changes | `dto/<verb>-<entity>.dto.ts` + controller input building |

@@ -1,6 +1,6 @@
 ---
 name: dataverse-data-access
-description: How to read and write Microsoft Dataverse (Dynamics 365 CRM) data in this NestJS project through repositories/dataverse/. Covers tables/ (one row shape per CRM table), queries/ ($select columns + $expand), the <entity>.table-mapper.ts (Table ↔ Domain), Dataverse repositories, $select/$filter/$expand, safe OData filters with odataString, option sets mapped to domain enums with optionSetValue, lookups and @odata.bind, null handling, pagination via nextLink, translating DataverseException, and the shared core/dataverse client with MSAL auth. Use when implementing or changing a Dataverse repository, table, query or table-mapper, querying a Dataverse table, handling Dataverse errors, or touching src/core/dataverse.
+description: How to read and write Microsoft Dataverse (Dynamics 365 CRM) data in this NestJS project through repositories/dataverse/. Covers tables/ (one row shape per CRM table), queries/ ($select columns + $expand), mappers/ (<entity>.table-mapper.ts: Table ↔ Domain), Dataverse repositories, $select/$filter/$expand, safe OData filters with odataString, option sets mapped to domain enums with optionSetValue, lookups and @odata.bind, null handling, pagination via nextLink, translating DataverseException, and the shared core/dataverse client with MSAL auth. Use when implementing or changing a Dataverse repository, table, query or table-mapper, querying a Dataverse table, handling Dataverse errors, or touching src/core/dataverse.
 ---
 
 # Dataverse Data Access
@@ -11,7 +11,7 @@ Keep everything Dataverse-specific (table names, column names, OData, lookups, a
 
 ## When to use
 
-- Implementing a `Dataverse<Entity>Repository`, a file in `tables/` or `queries/`, or an `<entity>.table-mapper.ts`
+- Implementing a `Dataverse<Entity>Repository`, a file in `tables/`, `queries/` or `mappers/` (`<entity>.table-mapper.ts`)
 - Querying, paging or expanding Dataverse data
 - Handling Dataverse failures
 - Changing `src/core/dataverse`
@@ -52,7 +52,8 @@ modules/customers/repositories/
 ├── customer.repository.ts                   abstract (what services see)
 └── dataverse/
     ├── dataverse-customer.repository.ts     extends CustomerRepository, uses DataverseClient
-    ├── customer.table-mapper.ts             CustomerTableMapper: Table ↔ Domain
+    ├── mappers/                             Table ↔ Domain
+    │   └── customer.table-mapper.ts         CustomerTableMapper
     ├── tables/                              what Dataverse returns: one file per CRM table
     │   └── customer.table.ts                CUSTOMER_TABLE + CustomerTableRow
     └── queries/                             what we ask for
@@ -75,7 +76,7 @@ Per feature, under `modules/<feature>/repositories/dataverse/`:
 
 1. `tables/<entity>.table.ts`: the table name constant (`CUSTOMER_TABLE = 'contacts'`) and the row type as the Web API returns it (`CustomerTableRow`). Each related table read through an `$expand` gets its own file, prefixed with the entity whose query returns it (`tables/invitation-compound.table.ts` → `InvitationCompoundTableRow`): it holds only the columns that query selects. If writes need a different shape (lookups), add `<Entity>TableWriteRow` in the same file.
 2. `queries/<entity>.query.ts`: `<ENTITY>_COLUMNS` (`$select`) and, when related data is needed, `<ENTITY>_EXPAND` (`$expand`).
-3. `<entity>.table-mapper.ts`: `toDomain(row)` (via `Entity.restore`, option sets through `optionSetValue`) and `toTableRow(entity)` when the feature writes. See [mapping.md](mapping.md).
+3. `mappers/<entity>.table-mapper.ts`: `toDomain(row)` (via `Entity.restore`, option sets through `optionSetValue`) and `toTableRow(entity)` when the feature writes. See [mapping.md](mapping.md).
 4. `dataverse-<entity>.repository.ts`: `extends` the abstract repository, injects `DataverseClient`, translates expected errors. See [error-handling.md](error-handling.md).
 5. Queries: explicit `$select`, filters escaped with `odataString`, cursor paging. See [querying.md](querying.md).
 
@@ -124,7 +125,7 @@ import {
 } from '../../../../core/dataverse';
 import { Customer } from '../../domain/models/customer.model';
 import { CustomerRepository } from '../customer.repository';
-import { CustomerTableMapper } from './customer.table-mapper';
+import { CustomerTableMapper } from './mappers/customer.table-mapper';
 import { CUSTOMER_COLUMNS } from './queries/customer.query';
 import { CUSTOMER_TABLE, CustomerTableRow } from './tables/customer.table';
 
@@ -188,7 +189,7 @@ A real example with a nested `$expand` (invitation → units → unit → compou
 
 ## PostgreSQL / SQL Server considerations
 
-A migration adds `repositories/postgres/` with the **same file names** (`postgres-customer.repository.ts`, `tables/customer.table.ts`, `customer.table-mapper.ts`); the abstract repository and everything above it stays. Make the Dataverse repository's observable behaviour (null for not found, lower-cased emails, the same domain errors) easy to reproduce. See `repository-design` → contract tests.
+A migration adds `repositories/postgres/` with the **same file names** (`postgres-customer.repository.ts`, `tables/customer.table.ts`, `mappers/customer.table-mapper.ts`); the abstract repository and everything above it stays. Make the Dataverse repository's observable behaviour (null for not found, lower-cased emails, the same domain errors) easy to reproduce. See `repository-design` → contract tests.
 
 ## Common mistakes
 
@@ -204,6 +205,9 @@ A migration adds `repositories/postgres/` with the **same file names** (`postgre
 | Writing `fullname` / `createdon` | they are computed or read-only; write `firstname` / `lastname` |
 | Setting a lookup as `new_customerid: id` | `'new_CustomerId@odata.bind': '/contacts(<guid>)'` |
 | `row.com_to as InvitedAs` or a bare `=== 3` | `optionSetValue(InvitedAs, row.com_to)`; compare enum members |
+| Writing `statuscode` without its `statecode` (or onto a record whose state doesn't allow it) | write the pair (`<Entity>State` + `<Entity>Status`); read `statecode` when a flow updates existing records |
+| Filtering on a column the row type doesn't list, as a bare string | type it: `keyof <Entity>TableRow`, or a `<Entity>SearchColumns` interface in the table file for filter-only columns |
+| Table-mapper next to the repository | `mappers/<entity>.table-mapper.ts` |
 | `retrieve` 404 propagated as an error | `null` in the repository |
 | `firstName ?? ''` everywhere without thinking | decide per field: nullable / documented default / fail loudly |
 | Assuming `retrieveMultiple` returns all rows | it returns the first page only (see [querying.md](querying.md)) |
