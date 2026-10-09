@@ -4,7 +4,7 @@ import { IdentityKind } from '../../domain/enums/identity-kind.enum';
 import { PhdAccount } from '../../domain/models/phd-account.model';
 import { UserIdentity } from '../../domain/models/user-identity.model';
 import { PhdAccountRepository } from '../phd-account.repository';
-import { PhdAccountTableMapper } from './phd-account.table-mapper';
+import { PhdAccountTableMapper } from './mappers/phd-account.table-mapper';
 import { PHD_ACCOUNT_COLUMNS } from './queries/phd-account.query';
 import {
   PHD_ACCOUNT_TABLE,

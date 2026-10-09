@@ -1,11 +1,11 @@
-import { optionSetValue } from '../../../../core/dataverse';
-import { IdentityKind } from '../../domain/enums/identity-kind.enum';
-import { RegisteredAs } from '../../domain/enums/registered-as.enum';
-import { UserState, UserStatus } from '../../domain/enums/user-status.enum';
-import { UserIdentity } from '../../domain/models/user-identity.model';
-import { UserRegistrationData } from '../../domain/models/user-registration-data.model';
-import { User } from '../../domain/models/user.model';
-import { UserTableRow, UserTableWriteRow } from './tables/user.table';
+import { optionSetValue } from '../../../../../core/dataverse';
+import { IdentityKind } from '../../../domain/enums/identity-kind.enum';
+import { RegisteredAs } from '../../../domain/enums/registered-as.enum';
+import { UserState, UserStatus } from '../../../domain/enums/user-status.enum';
+import { UserIdentity } from '../../../domain/models/user-identity.model';
+import { UserRegistrationData } from '../../../domain/models/user-registration-data.model';
+import { User } from '../../../domain/models/user.model';
+import { UserTableRow, UserTableWriteRow } from '../tables/user.table';
 
 /** Translates between `com_users` rows and the User domain model. */
 export class UserTableMapper {

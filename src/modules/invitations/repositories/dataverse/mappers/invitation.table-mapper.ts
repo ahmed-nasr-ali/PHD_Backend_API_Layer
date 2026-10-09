@@ -1,10 +1,10 @@
-import { optionSetValue } from '../../../../core/dataverse';
-import { InvitationStatus } from '../../domain/enums/invitation-status.enum';
-import { InvitedAs } from '../../domain/enums/invited-as.enum';
-import { Relationship } from '../../domain/enums/relationship.enum';
-import { InvitationCompound } from '../../domain/models/invitation-compound.model';
-import { Invitation } from '../../domain/models/invitation.model';
-import { InvitationTableRow } from './tables/invitation.table';
+import { optionSetValue } from '../../../../../core/dataverse';
+import { InvitationStatus } from '../../../domain/enums/invitation-status.enum';
+import { InvitedAs } from '../../../domain/enums/invited-as.enum';
+import { Relationship } from '../../../domain/enums/relationship.enum';
+import { InvitationCompound } from '../../../domain/models/invitation-compound.model';
+import { Invitation } from '../../../domain/models/invitation.model';
+import { InvitationTableRow } from '../tables/invitation.table';
 
 /** Translates a `com_invitationrequests` row into the Invitation domain model. */
 export class InvitationTableMapper {

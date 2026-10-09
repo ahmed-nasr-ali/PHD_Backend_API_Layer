@@ -6,7 +6,7 @@ import {
 } from '../../domain/enums/invitation-status.enum';
 import { Invitation } from '../../domain/models/invitation.model';
 import { InvitationRepository } from '../invitation.repository';
-import { InvitationTableMapper } from './invitation.table-mapper';
+import { InvitationTableMapper } from './mappers/invitation.table-mapper';
 import {
   INVITATION_COLUMNS,
   INVITATION_EXPAND,

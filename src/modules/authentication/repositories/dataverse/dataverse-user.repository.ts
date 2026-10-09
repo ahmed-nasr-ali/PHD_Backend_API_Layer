@@ -5,9 +5,9 @@ import { UserIdentity } from '../../domain/models/user-identity.model';
 import { UserRegistrationData } from '../../domain/models/user-registration-data.model';
 import { User } from '../../domain/models/user.model';
 import { UserRepository } from '../user.repository';
+import { UserTableMapper } from './mappers/user.table-mapper';
 import { USER_COLUMNS } from './queries/user.query';
 import { USER_TABLE, UserTableRow } from './tables/user.table';
-import { UserTableMapper } from './user.table-mapper';
 
 @Injectable()
 export class DataverseUserRepository extends UserRepository {
