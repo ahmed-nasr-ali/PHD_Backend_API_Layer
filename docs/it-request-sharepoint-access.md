@@ -1,6 +1,6 @@
 # IT request: SharePoint access for the backend (Graph, `Sites.Selected`)
 
-Status: **not sent yet** (decision F1 in [OPEN_QUESTIONS.md](../OPEN_QUESTIONS.md)). Until IT grants it, the backend uses the Power Automate flows adapter.
+Status: **not sent yet** (decision F1 in [files-study.md](files-study.md) section 7). Until IT grants it, the backend uses the Power Automate flows adapter.
 
 ## Why
 

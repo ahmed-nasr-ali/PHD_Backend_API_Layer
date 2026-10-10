@@ -3,6 +3,9 @@
 - **Rate limit on invitation code check:** limit code guessing per device/IP and per code (e.g. 5 failures → lock 15 min). Needs a decision on where counters are stored.
 - **Limit wrong OTP attempts:** the OTP is 4 digits (10,000 options) and lives 5 minutes, so without a limit it can be guessed. E.g. 5 wrong tries → the OTP is dead, a resend is needed. Needs a new `com_users` column for the counter (CRM team).
 - **Max OTP sends per hour:** resend already waits 60 s between sends, but there is no total cap (e.g. 5 SMS per hour per user). Needs a counter column too (CRM team).
+- **Log system (last task in the project):** today errors only go to the console through Nest's `Logger` (e.g. the exception filters, the SharePoint settings that fail to load at startup). Add a real log store (a log file per day, or a log service) so problems can be found later. Until then every place that must be logged uses Nest's `Logger`, so switching it is one change.
+- **Clean up old temp files:** files of jobs that failed for good stay on disk so they can be retried. If nobody retries them they pile up. Add a cleanup that removes them after N days (N to decide).
+- **Temp files on Azure App Service:** phdtest runs on Azure App Service. Point `TEMP_FILES_DIR` to a folder under `/home` (kept across deploys and shared between instances), so files are not lost on a redeploy. Config only, no code.
 - **Find users by the exact mobile number (to ask the team lead).**
 
   **What we do today.** On register we look for an existing user with the same mobile. We match only the **last 10 digits** (`endswith`):

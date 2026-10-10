@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { DataverseModule } from './core/dataverse';
 import { HttpModule } from './core/http';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
+import { FilesModule } from './modules/files/files.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module';
     HttpModule,
     InvitationsModule,
     AuthenticationModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
