@@ -7,6 +7,7 @@ import { HttpModule } from './core/http';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { FilesModule } from './modules/files/files.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { InvitationsModule } from './modules/invitations/invitations.module';
     InvitationsModule,
     AuthenticationModule,
     FilesModule,
+    JobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
