@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { DataverseModule } from './core/dataverse';
 import { HttpModule } from './core/http';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { FilesModule } from './modules/files/files.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -18,6 +19,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     HttpModule,
     InvitationsModule,
     AuthenticationModule,
+    DocumentsModule,
     FilesModule,
     JobsModule,
   ],
