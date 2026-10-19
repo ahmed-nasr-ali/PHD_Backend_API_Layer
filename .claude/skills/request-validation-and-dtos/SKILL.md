@@ -19,7 +19,7 @@ Related: `nestjs-feature-architecture` (folders, services, errors), `dataverse-d
 
 ## Prerequisites
 
-`src/core/validation/presets` exports:
+`src/core/validation` exports (defined in `presets/zod.presets.ts`):
 
 - `zodBody(schema)`: validates a body; failure → **422**
 - `zodQuery(schema)`: validates query strings; failure → **400**
@@ -28,11 +28,11 @@ Related: `nestjs-feature-architecture` (folders, services, errors), `dataverse-d
 A validation failure returns the error envelope with `code: "VALIDATION_FAILED"` and one `errors` entry per issue. `field` is the dotted path (`tags.0.name`); for a root-level issue it is the param name (`id`) or the source (`body`, `query`):
 
 ```json
-{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+{ "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed",
   "errors": [{ "field": "email", "message": "Invalid email address" }] }
 ```
 
-`src/core/http` (already registered in `AppModule`) wraps every successful controller result as `{ success: true, statusCode, message: "OK", data }`. Controllers return the response DTO, never the envelope. See `nestjs-feature-architecture` → `error-handling.md`.
+`src/core/api-response` (already registered in `AppModule`) wraps every successful controller result as `{ statusCode, message: "OK", data }`. Controllers return the response DTO, never the envelope. See `nestjs-feature-architecture` → `error-handling.md`.
 
 ## Core concept: four kinds of checks
 
@@ -122,7 +122,7 @@ export class CustomerResponseMapper {
 ```ts
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { zodBody, zodParam } from '../../../core/validation/presets';
+import { zodBody, zodParam } from '../../../core/validation';
 import type { CreateCustomerDto } from '../dto/requests/create-customer.dto';
 import { createCustomerSchema } from '../dto/requests/create-customer.dto';
 import { customerIdSchema } from '../dto/requests/customer-id.dto';
@@ -206,7 +206,7 @@ If a shape needs something the body doesn't have (params, the current user), bui
 - `@Body({ schema })` exists in NestJS 12 but **does nothing unless a `StandardSchemaValidationPipe` is registered**. This project uses `zodBody` / `zodQuery` / `zodParam` instead; don't mix the two.
 - Query strings and params are strings: use `z.coerce.number()`, `z.coerce.boolean()` and so on.
 - The controller builds the Input inline. There is no mapper class for copying request fields.
-- The controller calls exactly one service and declares its return type (`Promise<CustomerResponseDto>`). The global `ResponseInterceptor` wraps it in `{ success, statusCode, message, data }`; the controller never builds that envelope.
+- The controller calls exactly one service and declares its return type (`Promise<CustomerResponseDto>`). The global `ResponseInterceptor` wraps it in `{ statusCode, message, data }`; the controller never builds that envelope.
 
 ## CRM considerations
 
@@ -233,7 +233,7 @@ Nothing in `controllers/`, `dto/` or `mappers/` changes on a storage migration. 
 | Logic inside a response DTO | DTOs are types only; logic goes in the mapper |
 | A top-level `inputs/` folder, or a mapper class that copies request fields | `services/<verb>-<entity>.input.ts` next to its service; build it inline in the controller |
 | Response shape changes edited in the domain | edit only `dto/responses/<entity>-response.dto.ts` + `mappers/<entity>-response.mapper.ts` |
-| Controller returns `{ success: true, data: … }` itself | return the response DTO; `ResponseInterceptor` wraps it |
+| Controller returns `{ statusCode, data: … }` itself | return the response DTO; `ResponseInterceptor` wraps it |
 | `zodQuery` on a route param | `zodParam` (same 400 behaviour, clearer intent) |
 | A union body passed to the service as its DTO type | Input per shape + union Input; `const input: XInput = dto` in the controller |
 | `new Date(dto.birthDate)` repeated in every strategy | `.transform` in the field schema, once |

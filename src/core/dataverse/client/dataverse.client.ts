@@ -1,4 +1,4 @@
-import { DataverseQuery } from './dataverse-query';
+import { DataverseQuery } from '../query/dataverse-query.types';
 
 export abstract class DataverseClient {
   abstract retrieve<T>(

@@ -1,9 +1,9 @@
 export { DataverseModule } from './dataverse.module';
-export { DataverseClient } from './data-access/dataverse.client';
+export { DataverseClient } from './client/dataverse.client';
 export type {
   DataverseExpand,
   DataverseQuery,
-} from './data-access/dataverse-query';
+} from './query/dataverse-query.types';
 export { DataverseException } from './errors/dataverse.exception';
-export { odataString } from './data-access/odata';
-export { optionSetValue } from './data-access/option-set';
+export { odataString } from './query/odata-string.util';
+export { optionSetValue } from './mapping/option-set.util';

@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { zodBody } from '../../../../core/validation/presets';
+import { zodBody } from '../../../../core/validation';
 import type { ResendOtpDto } from '../dto/requests/resend-otp.dto';
 import { resendOtpSchema } from '../dto/requests/resend-otp.dto';
 import { ResendOtpResponseDto } from '../dto/responses/resend-otp-response.dto';

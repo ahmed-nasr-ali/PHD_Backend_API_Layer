@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AttachmentStorage } from './attachments/attachment-storage';
-import { SharePointSettingsModule } from './sharepoint/settings';
+import { SharePointSettingsModule } from './sharepoint/settings/sharepoint-settings.module';
 import { PowerAutomateAttachmentStorage } from './sharepoint/flows/power-automate-attachment-storage';
 import { PowerAutomateClient } from './sharepoint/flows/power-automate.client';
 

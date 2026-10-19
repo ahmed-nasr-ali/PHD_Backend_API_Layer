@@ -115,7 +115,7 @@ flowchart TB
     U["Service / Domain<br/>rule broken, not found"] --> AE
     AE --> F1["BusinessErrorFilter"]
     F1 --> H1(["404 / 409 / 422 / 403 / 429<br/>code = error.code"])
-    F2 --> H2(["502 / 503<br/>UPSTREAM_UNAVAILABLE"])
+    F2 --> H2(["503 UPSTREAM_UNAVAILABLE (busy)<br/>502 UPSTREAM_ERROR (5xx / no answer)<br/>500 INTERNAL_ERROR (4xx)"])
     V["zodBody / zodQuery / zodParam<br/>invalid request"] --> F3["HttpExceptionFilter"]
     F3 --> H3(["422 / 400<br/>VALIDATION_FAILED + errors"])
     B["Unexpected error (bug)"] --> F4["UnhandledExceptionFilter"]
@@ -131,13 +131,13 @@ flowchart TB
     class S1 ext
 ```
 
-Every red/blue end box above is the same error envelope (`src/core/http/`):
+Every red/blue end box above is the same error envelope (`src/core/api-response/`):
 
 ```json
-{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…", "data": null }
+{ "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…" }
 ```
 
-A successful request is wrapped by `ResponseInterceptor` as `{ "success": true, "statusCode": 201, "message": "OK", "data": <response DTO> }`.
+A successful request is wrapped by `ResponseInterceptor` as `{ "statusCode": 201, "message": "OK", "data": <response DTO> }`.
 
 ## 5. The same flow as code
 
@@ -261,7 +261,7 @@ static toResponse(customer: Customer): CustomerResponseDto {
 }
 ```
 
-**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`BusinessErrorFilter` in `core/http/filters/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
+**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`BusinessErrorFilter` in `core/exception-filters/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
 
 | `kind` | HTTP (`BusinessErrorFilter`) | CLI (example) |
 | --- | --- | --- |

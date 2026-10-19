@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { TokenProvider } from './token.provider';
+import { TokenProvider } from '../token.provider';
 import {
   AuthenticationResult,
   ConfidentialClientApplication,
 } from '@azure/msal-node';
-import { DataverseConfig } from '../config/dataverse.config';
-import { DataverseException } from '../errors/dataverse.exception';
+import { DataverseConfig } from '../../config/dataverse.config';
+import { DataverseException } from '../../errors/dataverse.exception';
 
 @Injectable()
 export class MsalTokenProvider extends TokenProvider {
@@ -19,7 +19,7 @@ export class MsalTokenProvider extends TokenProvider {
     this.scope = `${config.url}/.default`;
   }
 
-  async getToken(forceRefresh?: boolean): Promise<string> {
+  async getCrmToken(forceRefresh = false): Promise<string> {
     let result: AuthenticationResult | null;
     try {
       result = await this.msal.acquireTokenByClientCredential({

@@ -1,7 +1,7 @@
 /**
- * Decides whether and how a Dataverse request is retried.
- * `send` performs the request; a token, when passed, replaces the cached one.
+ * Decides how a Dataverse request is run when it may fail.
+ * `send` performs the request; the policy may call it again (e.g. after refreshing the token).
  */
-export abstract class DataverseRetryPolicy {
-  abstract execute<T>(send: (token?: string) => Promise<T>): Promise<T>;
+export abstract class RequestPolicy {
+  abstract execute<T>(send: () => Promise<T>): Promise<T>;
 }

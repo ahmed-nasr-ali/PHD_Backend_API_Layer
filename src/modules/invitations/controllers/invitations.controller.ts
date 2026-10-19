@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { zodBody } from '../../../core/validation/presets';
+import { zodBody } from '../../../core/validation';
 import type { CheckInvitationCodeDto } from '../dto/requests/check-invitation-code.dto';
 import { checkInvitationCodeSchema } from '../dto/requests/check-invitation-code.dto';
 import { InvitationCheckResponseDto } from '../dto/responses/invitation-check-response.dto';

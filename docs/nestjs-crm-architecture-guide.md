@@ -22,7 +22,7 @@ The guide builds on code that is already in the repository rather than inventing
 | [`src/core/dataverse/`](../src/core/dataverse/) | Connection to Dataverse: MSAL client-credentials auth (`TokenProvider` / `MsalTokenProvider`), a generic `DataverseClient` (abstract class) implemented with the `dynamics-web-api` library, a retry-on-401 policy and `DataverseException`. |
 | [`src/core/validation/`](../src/core/validation/) | Zod-based request validation: `zodBody(schema)` (422 on failure), `zodQuery(schema)` and `zodParam(schema)` (400 on failure). |
 | [`src/core/errors/`](../src/core/errors/) | Framework-free `BusinessError` base class + `BusinessErrorKind` enum for errors the business layers raise on purpose, and the `ErrorCode` enum of codes the system itself returns. |
-| [`src/core/http/`](../src/core/http/) | One response envelope for every response: global exception filters (business, Dataverse, HTTP/validation, catch-all) and a `ResponseInterceptor` for successes, registered by `HttpModule` (chapter 12). |
+| [`src/core/api-response/`](../src/core/api-response/) | One response envelope for every response: the envelope and a `ResponseInterceptor` for successes, registered by `ApiResponseModule` (chapter 12). |
 
 The CRM is therefore concrete: **Dataverse Web API (OData v4) authenticated with Microsoft Entra ID through MSAL**. The guide uses that technology. It does not use a generic "CRM".
 
@@ -311,7 +311,7 @@ async findOne(@Param('id', zodParam(customerIdSchema)) id: string) { … }
 `zodQuery(schema)` validates query strings the same way (400). A failure returns the error envelope (chapter 12) with `code: "VALIDATION_FAILED"` and one `errors` entry per issue; `field` is the dotted path, or the param name / source (`id`, `body`) for a root-level issue:
 
 ```json
-{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+{ "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed",
   "errors": [{ "field": "email", "message": "Invalid email address" }] }
 ```
 
@@ -409,7 +409,7 @@ It never calls repositories, never contains business `if`s and never sees Datave
 ```ts
 // controllers/customers.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { zodBody, zodParam } from '../../../core/validation/presets';
+import { zodBody, zodParam } from '../../../core/validation';
 import type { CreateCustomerDto } from '../dto/requests/create-customer.dto';
 import { createCustomerSchema } from '../dto/requests/create-customer.dto';
 import { customerIdSchema } from '../dto/requests/customer-id.dto';
@@ -485,7 +485,7 @@ export class CustomerResponseMapper {
 
 **Never return a domain object directly** (the notes do this in `getUser(@Param('id') id) { return this.getUserService.execute(id); }`). Serialising a class instance exposes every public field, adding a field to the domain silently changes the public API, and getters such as `fullName` are **not** serialised by `JSON.stringify`.
 
-**The response DTO is the `data` of the envelope.** The global `ResponseInterceptor` (`src/core/http/`) wraps whatever the controller returns, so `findOne` above produces `{ "success": true, "statusCode": 200, "message": "OK", "data": { "id": "…", "fullName": "…", … } }`. Controllers return the response DTO and never build the envelope themselves. File downloads (`StreamableFile`) and 204 responses are not wrapped. Error responses use the same envelope (chapter 12).
+**The response DTO is the `data` of the envelope.** The global `ResponseInterceptor` (`src/core/api-response/`) wraps whatever the controller returns, so `findOne` above produces `{ "statusCode": 200, "message": "OK", "data": { "id": "…", "fullName": "…", … } }`. Controllers return the response DTO and never build the envelope themselves. File downloads (`StreamableFile`) and 204 responses are not wrapped. Error responses use the same envelope (chapter 12).
 
 ### The notes' "frontend wants a different shape" example: correct
 
@@ -1196,7 +1196,7 @@ Notes on this code:
 filter: `emailaddress1 eq '${email}'` // ❌ email = "x' or statecode eq 0 or emailaddress1 eq 'y"
 ```
 
-Escape string literals (single quotes are doubled in OData) with `odataString`, exported from `core/dataverse` (`data-access/odata.ts`):
+Escape string literals (single quotes are doubled in OData) with `odataString`, exported from `core/dataverse` (`query/odata-string.util.ts`):
 
 ```ts
 /** Quotes a value as an OData string literal, escaping embedded single quotes. */
@@ -1277,8 +1277,8 @@ DataverseClient (abstract)  ◄── what repositories inject
       ▲
 DynamicsWebApiClient        ── wraps every call: retry policy + error normalisation
       │ uses
-DynamicsWebApi (library)    ── onTokenRefresh → TokenProvider.getToken()
-DataverseRetryPolicy (abstract) ◄── TokenRefreshRetryPolicy (on 401: TokenProvider.getToken(forceRefresh) and retry once)
+DynamicsWebApi (library)    ── onTokenRefresh → TokenProvider.getCrmToken()
+RequestPolicy (abstract)    ◄── RetryOnExpiredTokenPolicy (on 401: TokenProvider.getCrmToken(true) refreshes MSAL's cache, then send again once)
 TokenProvider (abstract)    ◄── MsalTokenProvider (client credentials, ConfidentialClientApplication)
 DataverseConfig             ── { url, tenantId, clientId, clientSecret } from DV_URL, DV_TENANT_ID, DV_CLIENT_ID, DV_CLIENT_SECRET (getOrThrow)
 ```
@@ -1298,16 +1298,16 @@ async getUser(id: string) {
 | Returns an Axios response, not data | `DataverseClient` returns typed data |
 | Entity-specific method (`getUser`) on the shared client | client is generic (`retrieve(table, id, select)`); entity knowledge lives in repositories |
 | No error handling | `DynamicsWebApiClient` normalises every failure to `DataverseException` with `status` and `cause` |
-| No token refresh on 401 | `TokenRefreshRetryPolicy` (the `DataverseRetryPolicy` implementation) retries once with a force-refreshed token |
+| No token refresh on 401 | `RetryOnExpiredTokenPolicy` (the `RequestPolicy` implementation) retries once with a force-refreshed token |
 | Hand-built URLs | `dynamics-web-api` builds OData URLs and encodes parameters |
 
 ### Gaps in the current client (proposed follow-ups, not yet implemented)
 
-1. **Throttling (429).** Dataverse returns `429 Too Many Requests` with a `Retry-After` header when service-protection limits are hit. `dynamics-web-api` does not retry these, and `TokenRefreshRetryPolicy` only handles 401. Add a bounded retry honouring `Retry-After` for idempotent reads at minimum, as a new `DataverseRetryPolicy` implementation (or a decorator wrapping the current one) and one `useClass` change in `DataverseModule`; `DynamicsWebApiClient` does not change.
+1. **Throttling (429).** Dataverse returns `429 Too Many Requests` with a `Retry-After` header when service-protection limits are hit. `dynamics-web-api` does not retry these, and `RetryOnExpiredTokenPolicy` only handles 401. Add a bounded retry honouring `Retry-After` for idempotent reads at minimum, as a new `RequestPolicy` implementation (or a decorator wrapping the current one) and one `useClass` change in `DataverseModule`; `DynamicsWebApiClient` does not change.
 2. **Pagination.** `retrieveMultiple` drops `oDataNextLink` (chapter 10).
 3. **Error detail.** `DataverseException` keeps the HTTP status but not the Dataverse error `code` (for example the duplicate-key code). Repositories need the code to translate specific failures reliably.
 4. ✅ **`$expand` support** on `retrieveMultiple` (done: `DataverseQuery.expand`); `retrieve` still has none.
-5. ✅ **`odataString` helper** for safe filters (done: `core/dataverse/data-access/odata.ts`), plus `optionSetValue` for option sets.
+5. ✅ **`odataString` helper** for safe filters (done: `core/dataverse/query/odata-string.util.ts`), plus `optionSetValue` for option sets.
 
 ### Authorisation: the application user
 
@@ -1333,9 +1333,9 @@ Repository: expected errors → null or BusinessError               feature infr
    ↓
 Service: business outcomes → BusinessError                         services/ + domain/
    ↓
-Global exception filters                                              core/http/filters
+Global exception filters                                              core/exception-filters
    BusinessError      → 404 / 409 / 422 / 403 / 429, code = error.code (429: + retryAfterSeconds)
-   DataverseException → 502 / 503, code = UPSTREAM_UNAVAILABLE, details logged, not exposed
+   DataverseException → 503 UPSTREAM_UNAVAILABLE (429/503) · 502 UPSTREAM_ERROR (other 5xx / no answer) · 500 INTERNAL_ERROR (4xx: our request was wrong); details logged, not exposed
    HttpException      → its own status; validation pipes: 400 / 422, code = VALIDATION_FAILED + errors
    anything else      → 500, code = INTERNAL_ERROR, details logged, not exposed
 ```
@@ -1346,24 +1346,24 @@ Every response, success or error, has the same shape, so clients parse one struc
 
 ```jsonc
 // success (ResponseInterceptor wraps the controller's response DTO)
-{ "success": true,  "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
+{ "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
 // error (exception filters)
-{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "Customer 42 was not found", "data": null }
+{ "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "Customer 42 was not found" }
 // validation error
-{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+{ "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed",
   "errors": [{ "field": "email", "message": "Invalid email address" }] }
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `success` | `true` for 2xx, `false` otherwise |
-| `statusCode` | same as the HTTP status (convenience for clients) |
-| `code` | errors only: stable, machine-readable (`CUSTOMER_NOT_FOUND`, `VALIDATION_FAILED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE`, `INTERNAL_ERROR`) |
+| `statusCode` | same as the HTTP status (convenience for clients); 2xx = success |
+| `code` | errors only: stable, machine-readable (`CUSTOMER_NOT_FOUND`, `VALIDATION_FAILED`, `NOT_FOUND`, `UPSTREAM_UNAVAILABLE`, `UPSTREAM_ERROR`, `INTERNAL_ERROR`) |
 | `message` | human-readable; may change or be translated, so clients must not branch on it |
-| `data` | the success payload; always `null` on errors |
-| `errors` | optional field-level problems (`{ field?, message }[]`) |
+| `data` | successes only: the payload (the response DTO) |
+| `errors` | errors only, optional: field-level problems (`{ field?, message }[]`) |
+| `retryAfterSeconds` | 429 only: seconds to wait before trying again |
 
-The shape lives in one place, `ApiResponseBuilder` (`src/core/http/api-response.ts`). Adding a field later is safe for clients; removing or renaming one is a breaking change that needs a deprecation period or a new API version.
+The shape lives in one place, `ApiResponseBuilder` (`src/core/api-response/envelope/`). Adding a field later is safe for clients; removing or renaming one is a breaking change that needs a deprecation period or a new API version.
 
 The codes the system itself returns are one enum, so none of them is hand-typed in a filter:
 
@@ -1376,7 +1376,8 @@ The codes the system itself returns are one enum, so none of them is hand-typed 
  */
 export enum ErrorCode {
   ValidationFailed = 'VALIDATION_FAILED',
-  UpstreamUnavailable = 'UPSTREAM_UNAVAILABLE',
+  UpstreamUnavailable = 'UPSTREAM_UNAVAILABLE', // Dataverse busy (429/503): try again later
+  UpstreamError = 'UPSTREAM_ERROR', // Dataverse failed (other 5xx) or did not answer
   InternalError = 'INTERNAL_ERROR',
   HttpError = 'HTTP_ERROR', // an HttpException whose status has no name
 }
@@ -1429,12 +1430,12 @@ export abstract class RetryLaterError extends BusinessError {
 
 ### Filters
 
-The filters live in `src/core/http/filters/`, not in `core/errors/`, so that the framework-free error classes never pull NestJS into the domain.
+The filters live in `src/core/exception-filters/`, not in `core/errors/`, so that the framework-free error classes never pull NestJS into the domain.
 
 **A base class logs and writes the response; each filter only translates** (Template Method). Any response ≥ 500 is logged here, once, whichever filter produced it, so no filter can forget. Writing goes through `HttpAdapterHost`, so the filters don't depend on Express:
 
 ```ts
-// core/http/filters/api-exception.filter.ts
+// core/exception-filters/api-exception.filter.ts
 @Injectable()
 export abstract class ApiExceptionFilter<E> implements ExceptionFilter<E> {
   private readonly logger = new Logger(this.constructor.name); // the subclass name
@@ -1476,7 +1477,7 @@ export abstract class ApiExceptionFilter<E> implements ExceptionFilter<E> {
 `toResponse()` decides what the **client** sees; `describe()` decides what the **log** says.
 
 ```ts
-// core/http/filters/business-error.filter.ts
+// core/exception-filters/business-error/business-error.filter.ts
 const STATUS_BY_KIND: Record<BusinessErrorKind, HttpStatus> = {
   [BusinessErrorKind.NotFound]: HttpStatus.NOT_FOUND,
   [BusinessErrorKind.Conflict]: HttpStatus.CONFLICT,
@@ -1497,7 +1498,7 @@ export class BusinessErrorFilter extends ApiExceptionFilter<BusinessError> {
 ```
 
 ```ts
-// core/http/filters/dataverse-exception.filter.ts
+// core/exception-filters/dataverse-exception/dataverse-exception.filter.ts
 /** Last-resort translation of Dataverse failures that no repository handled. */
 @Catch(DataverseException)
 export class DataverseExceptionFilter extends ApiExceptionFilter<DataverseException> {
@@ -1528,9 +1529,9 @@ The other two filters follow the same pattern:
 | `HttpExceptionFilter` | `HttpException` (validation pipes, `NotFoundException`, unknown routes, …) | its own status; `code` from the body (`VALIDATION_FAILED`) or the status name (`NOT_FOUND`); validation `errors` carried through; a `message` array becomes one `errors` entry per message; a 500 is answered with `INTERNAL_ERROR` and a generic message, because its text may hold internal details |
 | `UnhandledExceptionFilter` | everything else (`@Catch()`) | 500 `INTERNAL_ERROR` with a generic message |
 
-Successes are wrapped by `ResponseInterceptor` (`core/http/response.interceptor.ts`); it skips `StreamableFile`, 204 responses and non-HTTP contexts.
+Successes are wrapped by `ResponseInterceptor` (`core/api-response/interceptors/response.interceptor.ts`); it skips `StreamableFile`, 204 responses and non-HTTP contexts.
 
-`HttpModule` (`core/http/http.module.ts`) registers the four filters as `APP_FILTER` and the interceptor as `APP_INTERCEPTOR`; `AppModule` imports it once (chapter 13). **Order matters:** Nest tries global filters in reverse registration order and uses the first whose `@Catch` matches, so the catch-all must be registered **first**, otherwise it would turn every error into a 500. A new error source (e.g. a PostgreSQL error filter after a migration) is one new `ApiExceptionFilter` subclass and one `APP_FILTER` line after the catch-all.
+`ExceptionFiltersModule` (`core/exception-filters/exception-filters.module.ts`) registers the four filters as `APP_FILTER`, and `ApiResponseModule` (`core/api-response/api-response.module.ts`) registers the interceptor as `APP_INTERCEPTOR`; `AppModule` imports both once (chapter 13). **Order matters:** Nest tries global filters in reverse registration order and uses the first whose `@Catch` matches, so the catch-all must be registered **first**, otherwise it would turn every error into a 500. A new error source (e.g. a PostgreSQL error filter after a migration) is one new `ApiExceptionFilter` subclass and one `APP_FILTER` line after the catch-all.
 
 ### Same error, different callers
 
@@ -1563,7 +1564,7 @@ try {
 | --- | --- |
 | Never `throw new Error('User not found')` (as in the notes' `OrderService`) | it becomes a 500 and the client can't distinguish it |
 | Never throw `HttpException` (`NotFoundException`) from services or domain | ties business code to HTTP; a queue consumer would receive an HTTP exception |
-| No HTTP status codes in `domain/` or `services/`, not even in comments | write `// kind: Conflict`, not `// → 409`; only `core/http/` and controllers know HTTP |
+| No HTTP status codes in `domain/` or `services/`, not even in comments | write `// kind: Conflict`, not `// → 409`; only `core/api-response/`, `core/exception-filters/` and controllers know HTTP |
 | Never `catch (DataverseException)` in a service | the service would know about the CRM. Repositories translate. |
 | Translate only **expected** infrastructure errors in the repository | 404 → `null`, duplicate key → `EmailAlreadyInUseError`; everything else propagates |
 | Never expose Dataverse messages or unexpected error text to API clients | they can contain schema names, credentials and internal details; log them instead |
@@ -1612,7 +1613,8 @@ export class OrdersModule {}
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    HttpModule, // global exception filters + ResponseInterceptor (chapter 12)
+    ApiResponseModule, // ResponseInterceptor: success envelope (chapter 12)
+    ExceptionFiltersModule, // global exception filters: error envelope (chapter 12)
     CustomersModule,
     OrdersModule,
   ],
@@ -1620,7 +1622,7 @@ export class OrdersModule {}
 export class AppModule {}
 ```
 
-`HttpModule` (`src/core/http`) registers the global filters and the response interceptor itself, so `AppModule` has no `APP_FILTER` providers and feature modules never register filters.
+`ApiResponseModule` (`src/core/api-response`) registers the response interceptor and `ExceptionFiltersModule` (`src/core/exception-filters`) registers the global filters, so `AppModule` has no `APP_FILTER` providers and feature modules never register filters.
 
 Corrections to the notes' module:
 
@@ -1676,14 +1678,15 @@ The notes contain two structures. The first (`users/` with root-level `mappers/`
 ```text
 src/
 ├── main.ts
-├── app.module.ts                         # ConfigModule, HttpModule, feature modules
+├── app.module.ts                         # ConfigModule, ApiResponseModule, ExceptionFiltersModule, feature modules
 ├── core/                                 # cross-cutting technical building blocks
 │   ├── dataverse/                        # (exists) connection: auth, client, retry, errors
-│   │   ├── config/  crm-token/  data-access/  errors/  policies/
+│   │   ├── auth/  client/  config/  errors/  mapping/  policies/  query/
 │   │   └── index.ts                      # public API: DataverseModule, DataverseClient, DataverseException
 │   ├── validation/                       # (exists) zodBody / zodQuery / zodParam pipes
 │   ├── errors/                           # (exists) BusinessError + BusinessErrorKind + ErrorCode, framework-free
-│   └── http/                             # (exists) response envelope, global filters, ResponseInterceptor, HttpModule
+│   ├── api-response/                     # (exists) response envelope + ResponseInterceptor (ApiResponseModule)
+│   └── exception-filters/                # (exists) global exception filters (ExceptionFiltersModule)
 └── modules/
     ├── customers/
     │   ├── customers.module.ts

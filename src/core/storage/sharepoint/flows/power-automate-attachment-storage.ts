@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AttachmentStorage } from '../../attachments/attachment-storage';
 import type { NewAttachment } from '../../attachments/new-attachment';
-import { SharePointSettingsCache } from '../settings';
+import { SharePointSettingsCache } from '../settings/sharepoint-settings.cache';
 import { UploadFlowRequestMapper } from './mappers/upload-flow-request.mapper';
 import { PowerAutomateClient } from './power-automate.client';
 

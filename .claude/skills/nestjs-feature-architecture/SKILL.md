@@ -24,7 +24,7 @@ Related skills: `request-validation-and-dtos` (dto/, controllers/, mappers/), `d
   - `src/core/dataverse` (exports `DataverseModule`, `DataverseClient`, `DataverseException`)
   - `src/core/validation` (exports `zodBody`, `zodQuery`, `zodParam`)
   - `src/core/errors` (exports `BusinessError`, `BusinessErrorKind`, `ErrorCode`; framework-free)
-  - `src/core/http` (exports `HttpModule`, the response envelope; global exception filters + `ResponseInterceptor`, already registered in `AppModule`). See [error-handling.md](error-handling.md).
+  - `src/core/api-response` (exports `ApiResponseModule`, the response envelope + `ResponseInterceptor`) and `src/core/exception-filters` (exports `ExceptionFiltersModule`, the global exception filters); both already registered in `AppModule`. See [error-handling.md](error-handling.md).
 
 ## Core concept
 
@@ -123,7 +123,7 @@ return { customer, recentOrders };
 - Cross-feature use: the depending module imports the other module, which **exports its abstract repository** (`exports: [CustomerRepository]`). Put a cross-feature service in the module that already depends on the other. Never create circular imports.
 - A service never calls another service. Shared logic goes into the domain model or a repository method.
 - **Exception: one operation with a different flow per type** (e.g. register for six user types). The service hands the work to one **strategy** per type, picked by a factory; the strategies share small **helper** classes (a verifier, a registrar). They all live in `services/<operation>/` and are one use case, not services calling services. See [strategies.md](strategies.md).
-- Global filters and the response interceptor are registered once in `src/core/http/http.module.ts` (imported by `AppModule`). Features never register filters and never build the response envelope; controllers return response DTOs.
+- Global filters are registered once in `src/core/exception-filters/exception-filters.module.ts` and the response interceptor in `src/core/api-response/api-response.module.ts` (both imported by `AppModule`). Features never register filters and never build the response envelope; controllers return response DTOs.
 
 ## CRM considerations
 

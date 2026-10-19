@@ -1,9 +1,8 @@
 import { Catch, HttpStatus } from '@nestjs/common';
-import { DataverseException } from '../../../dataverse';
-import { ApiErrorResponse } from '../../envelope/api-response.types';
-import { ApiResponseBuilder } from '../../envelope/api-response.builder';
+import { DataverseException } from '../../dataverse';
+import { ApiErrorResponse, ApiResponseBuilder } from '../../api-response';
 import { ApiExceptionFilter } from '../api-exception.filter';
-import { ErrorCode } from '../../../errors';
+import { ErrorCode } from '../../errors';
 
 const BUSY_STATUSES = [429, 503];
 

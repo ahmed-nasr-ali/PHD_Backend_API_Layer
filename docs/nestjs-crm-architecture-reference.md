@@ -34,12 +34,13 @@ controllers/ ──► services/ ──► domain/
 
 ```text
 src/
-├── app.module.ts                         ConfigModule, HttpModule, feature modules
+├── app.module.ts                         ConfigModule, ApiResponseModule, ExceptionFiltersModule, feature modules
 ├── core/
 │   ├── dataverse/                        connection only: MSAL, DataverseClient, retry, DataverseException
 │   ├── validation/                       zodBody (422) / zodQuery / zodParam (400)
 │   ├── errors/                           BusinessError + BusinessErrorKind + ErrorCode (framework-free)
-│   └── http/                             response envelope, 4 global exception filters, ResponseInterceptor, HttpModule
+│   ├── api-response/                     response envelope + ResponseInterceptor (ApiResponseModule)
+│   └── exception-filters/                4 global exception filters (ExceptionFiltersModule)
 └── modules/customers/
     ├── customers.module.ts
     ├── controllers/customers.controller.ts
@@ -179,18 +180,19 @@ Zod notes: use `z.guid()` for Dataverse ids; mirror Dataverse column max lengths
 | Dataverse 404 on single read | — | repository → `null` | (service decides) | |
 | Dataverse duplicate key | `DataverseException` | repository → `BusinessError` (`Conflict`) | 409 | the error's code |
 | Dataverse 429 / 503 | `DataverseException` | `DataverseExceptionFilter` | 503 | `UPSTREAM_UNAVAILABLE` |
-| other Dataverse failure | `DataverseException` | `DataverseExceptionFilter` (logs details) | 502 | `UPSTREAM_UNAVAILABLE` |
+| Dataverse other 5xx / no answer | `DataverseException` | `DataverseExceptionFilter` (logs details) | 502 | `UPSTREAM_ERROR` |
+| Dataverse 4xx (bad query, wrong table/column, app permissions) | `DataverseException` | `DataverseExceptionFilter` (logs details) | 500 | `INTERNAL_ERROR` |
 | other Nest `HttpException` (unknown route, …) | `HttpException` | `HttpExceptionFilter` | its status | status name (`NOT_FOUND`) |
 | anything else | `Error` | `UnhandledExceptionFilter` (logs details) | 500 | `INTERNAL_ERROR` |
 
-Every response uses one envelope (`src/core/http/api-response.ts`):
+Every response uses one envelope (`src/core/api-response/envelope/`):
 
 ```jsonc
-{ "success": true,  "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
-{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…", "data": null, "errors": [ /* optional */ ] }
+{ "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
+{ "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "…", "errors": [ /* optional */ ] }
 ```
 
-Controllers return response DTOs; `ResponseInterceptor` wraps them. The filters live in `core/http/filters/` and are registered by `HttpModule` (catch-all first: Nest tries global filters in reverse order).
+Controllers return response DTOs; `ResponseInterceptor` wraps them. The filters live in `core/exception-filters/` and are registered by `ExceptionFiltersModule` (catch-all first: Nest tries global filters in reverse order).
 
 The HTTP column is decided **only** by the filters. Domain and services throw `kind` + `code`; another caller (CLI, queue consumer) catches the same `BusinessError` and maps `kind` its own way (e.g. print message, exit 1).
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { DynamicsWebApi } from 'dynamics-web-api';
 import { DataverseConfig } from './config/dataverse.config';
-import { TokenProvider } from './crm-token/token.provider';
+import { TokenProvider } from './auth/token.provider';
 
 export const dataverseConfigProvider: Provider = {
   provide: DataverseConfig,
@@ -37,7 +37,7 @@ export const dynamicsWebApiProvider: Provider = {
     new DynamicsWebApi({
       serverUrl: config.url,
       dataApi: { version: '9.2' },
-      onTokenRefresh: () => tokenProvider.getToken(),
+      onTokenRefresh: () => tokenProvider.getCrmToken(),
       propagateErrors: true,
     }),
 };

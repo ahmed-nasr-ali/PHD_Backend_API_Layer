@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   SharePointSettingsCache,
   type SharePointSettings,
-} from '../../../core/storage/sharepoint/settings';
+} from '../../../core/storage';
 
 /**
  * Reads the SharePoint settings from the CRM again, after the CRM team edits them, without restarting the server.

@@ -1,5 +1,5 @@
 import type { NewAttachment } from '../../../attachments/new-attachment';
-import type { SharePointSettings } from '../../settings';
+import type { SharePointSettings } from '../../settings/models/sharepoint-settings.model';
 import type { UploadFlowRequest } from '../requests/upload-flow.request';
 
 /** Turns a file to keep into the body the upload flow expects. */

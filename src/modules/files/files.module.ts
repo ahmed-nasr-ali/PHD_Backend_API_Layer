@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { SharePointSettingsModule } from '../../core/storage/sharepoint/settings';
+import { SharePointSettingsModule } from '../../core/storage';
 import { FilesSettingsController } from './controllers/files-settings.controller';
 import { GetSharePointSettingsService } from './services/get-sharepoint-settings.service';
 import { RefreshSharePointSettingsService } from './services/refresh-sharepoint-settings.service';

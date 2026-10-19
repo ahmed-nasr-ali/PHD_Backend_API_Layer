@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
-import { DataverseClient } from './data-access/dataverse.client';
-import { DataverseRetryPolicy } from './policies/dataverse-retry.policy';
-import { TokenRefreshRetryPolicy } from './policies/token-refresh-retry.policy';
+import { DataverseClient } from './client/dataverse.client';
+import { RequestPolicy } from './policies/request.policy';
+import { RetryOnExpiredTokenPolicy } from './policies/expired-token/retry-on-expired-token.policy';
 import {
   dataverseConfigProvider,
   dynamicsWebApiProvider,
   msalProvider,
 } from './dataverse.providers';
-import { DynamicsWebApiClient } from './data-access/dynamics-web-api.client';
-import { MsalTokenProvider } from './crm-token/msal-token.provider';
-import { TokenProvider } from './crm-token/token.provider';
+import { DynamicsWebApiClient } from './client/dynamics-web-api/dynamics-web-api.client';
+import { MsalTokenProvider } from './auth/msal/msal-token.provider';
+import { TokenProvider } from './auth/token.provider';
 
 @Module({
   providers: [
@@ -17,7 +17,7 @@ import { TokenProvider } from './crm-token/token.provider';
     msalProvider,
     { provide: TokenProvider, useClass: MsalTokenProvider },
     dynamicsWebApiProvider,
-    { provide: DataverseRetryPolicy, useClass: TokenRefreshRetryPolicy },
+    { provide: RequestPolicy, useClass: RetryOnExpiredTokenPolicy },
     { provide: DataverseClient, useClass: DynamicsWebApiClient },
   ],
   exports: [DataverseClient],

@@ -89,4 +89,4 @@ Each Web API call is its own transaction. For all-or-nothing writes across recor
 
 ## Throttling
 
-429 responses (service-protection limits) are not retried by `dynamics-web-api` or by the current `TokenRefreshRetryPolicy` (which handles only 401). Avoid bursts (parallelise with care, batch where sensible), and add a bounded `Retry-After` retry when it becomes a problem: a new `DataverseRetryPolicy` implementation (or a decorator wrapping the current one) in `core/dataverse/policies` + one `useClass` change in `DataverseModule`.
+429 responses (service-protection limits) are not retried by `dynamics-web-api` or by the current `RetryOnExpiredTokenPolicy` (which handles only 401). Avoid bursts (parallelise with care, batch where sensible), and add a bounded `Retry-After` retry when it becomes a problem: a new `RequestPolicy` implementation (or a decorator wrapping the current one) in its own folder under `core/dataverse/policies/` (e.g. `busy-server/retry-on-busy-server.policy.ts`) + one `useClass` change in `DataverseModule`.

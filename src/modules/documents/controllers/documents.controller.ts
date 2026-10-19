@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { FilesToBodyInterceptor } from '../../../core/uploads';
-import { zodBody } from '../../../core/validation/presets';
+import { zodBody } from '../../../core/validation';
 import type { UploadDocumentsDto } from '../dto/requests/upload-documents.dto';
 import { uploadDocumentsSchema } from '../dto/requests/upload-documents.dto';
 import type { UploadDocumentsResponseDto } from '../dto/responses/upload-documents-response.dto';

@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { zodBody } from '../../../../core/validation/presets';
+import { zodBody } from '../../../../core/validation';
 import type { RegisterDto } from '../dto/requests/register.dto';
 import { registerSchema } from '../dto/requests/register.dto';
 import { RegisterResponseDto } from '../dto/responses/register-response.dto';

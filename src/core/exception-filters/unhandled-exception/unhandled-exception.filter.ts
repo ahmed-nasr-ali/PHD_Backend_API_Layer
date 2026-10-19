@@ -1,7 +1,6 @@
 import { Catch, HttpStatus } from '@nestjs/common';
-import { ErrorCode } from '../../../errors';
-import { ApiErrorResponse } from '../../envelope/api-response.types';
-import { ApiResponseBuilder } from '../../envelope/api-response.builder';
+import { ErrorCode } from '../../errors';
+import { ApiErrorResponse, ApiResponseBuilder } from '../../api-response';
 import { ApiExceptionFilter } from '../api-exception.filter';
 
 /** Anything no other filter handled: logged by the base class, never exposed. */

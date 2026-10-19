@@ -1,3 +1,3 @@
 export abstract class TokenProvider {
-  abstract getToken(forceRefresh?: boolean): Promise<string>;
+  abstract getCrmToken(forceRefresh?: boolean): Promise<string>;
 }

@@ -222,11 +222,11 @@ These are **proposals only**. No source code was changed.
 | # | Observation | Location | Suggested follow-up |
 | --- | --- | --- | --- |
 | 1 | ✅ Abstract-class DI tokens, MSAL isolated in core, error normalisation with `cause`, retry once on 401 with a forced token refresh, `getOrThrow` config | `src/core/dataverse/` | keep; document as the convention |
-| 2 | 💡 `retrieveMultiple` returns `response.value` and drops `oDataNextLink`: lists return at most the first page | `data-access/dynamics-web-api.client.ts` | return `{ items, nextLink }` (or add a paged variant) |
-| 3 | 💡 No handling of 429 throttling (`dynamics-web-api` doesn't retry it either) | `policies/dataverse-retry.policy.ts` | bounded retry honouring `Retry-After`, at least for reads |
+| 2 | 💡 `retrieveMultiple` returns `response.value` and drops `oDataNextLink`: lists return at most the first page | `client/dynamics-web-api/dynamics-web-api.client.ts` | return `{ items, nextLink }` (or add a paged variant) |
+| 3 | 💡 No handling of 429 throttling (`dynamics-web-api` doesn't retry it either) | `policies/request.policy.ts` | bounded retry honouring `Retry-After`, at least for reads |
 | 4 | 💡 `DataverseException` keeps HTTP status but not the Dataverse error code | `errors/dataverse.exception.ts` | add `code` so that repositories can recognise duplicate-key and similar errors |
-| 5 | ✅ Done: `odataString()` in `data-access/odata.ts`, exported from `core/dataverse` | `data-access/odata.ts` | use it for every string value in a `$filter` |
-| 6 | ✅ Done for lists: `DataverseQuery.expand` (nested `DataverseExpand`); single `retrieve` still has none | `data-access/dataverse-query.ts` | add to `retrieve` when first needed; no `top` with a nested one-to-many expand |
-| 7 | ✅ Done: global exception filters (business, Dataverse, HTTP/validation, catch-all) + `ResponseInterceptor`, one response envelope for every response | `src/core/http/` (`HttpModule`, imported by `AppModule`) | see guide ch. 12 |
+| 5 | ✅ Done: `odataString()` in `query/odata-string.util.ts`, exported from `core/dataverse` | `query/odata-string.util.ts` | use it for every string value in a `$filter` |
+| 6 | ✅ Done for lists: `DataverseQuery.expand` (nested `DataverseExpand`); single `retrieve` still has none | `query/dataverse-query.types.ts` | add to `retrieve` when first needed; no `top` with a nested one-to-many expand |
+| 7 | ✅ Done: global exception filters (business, Dataverse, HTTP/validation, catch-all) + `ResponseInterceptor`, one response envelope for every response | `src/core/api-response/` + `src/core/exception-filters/` (`ApiResponseModule` + `ExceptionFiltersModule`, imported by `AppModule`) | see guide ch. 12 |
 | 8 | ⚠️ Jest + ESM: NestJS 12 packages are ESM-only, and the current ts-jest (CommonJS) setup fails on any test importing `@nestjs/common` ("Must use import to load ES Module") | `jest.config.ts`, `tsconfig.json` | run Jest with `--experimental-vm-modules`, and add `"rootDir": "./"` to `tsconfig.json` (TypeScript 6 fails every suite with TS5011 without it); both verified in a scratch copy, not applied yet |
 | 9 | ⚠️ Zod-inferred types used in decorated parameters must be imported with `import type` (TS1272 under `isolatedModules` + `emitDecoratorMetadata`) | `tsconfig.json` | convention, documented in the skills |

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   SharePointSettingsCache,
   type SharePointSettings,
-} from '../../../core/storage/sharepoint/settings';
+} from '../../../core/storage';
 
 /** Gives the SharePoint settings the API is using right now (from memory; the CRM is asked only if they were never loaded). */
 @Injectable()

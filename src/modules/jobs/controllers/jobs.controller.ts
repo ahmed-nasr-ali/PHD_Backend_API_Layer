@@ -6,7 +6,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { zodParam } from '../../../core/validation/presets';
+import { zodParam } from '../../../core/validation';
 import { jobIdSchema } from '../dto/requests/job-id.dto';
 import type { JobResponseDto } from '../dto/responses/job-response.dto';
 import { JobResponseMapper } from '../mappers/job-response.mapper';

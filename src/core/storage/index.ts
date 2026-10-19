@@ -5,3 +5,7 @@ export { FileCategory } from './attachments/file-category.enum';
 export { TempStorageModule } from './temp/temp-storage.module';
 export { TempFileStore } from './temp/temp-file-store';
 export { TempFileMissingException } from './temp/errors/temp-file-missing.exception';
+export { SharePointSettingsModule } from './sharepoint/settings/sharepoint-settings.module';
+export { SharePointSettingsCache } from './sharepoint/settings/sharepoint-settings.cache';
+export type { SharePointSettings } from './sharepoint/settings/models/sharepoint-settings.model';
+export { SharePointSettingsMissingException } from './sharepoint/settings/errors/sharepoint-settings-missing.exception';

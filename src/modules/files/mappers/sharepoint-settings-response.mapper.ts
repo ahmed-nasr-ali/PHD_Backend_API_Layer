@@ -1,5 +1,5 @@
 import { FileCategory } from '../../../core/storage';
-import type { SharePointSettings } from '../../../core/storage/sharepoint/settings';
+import type { SharePointSettings } from '../../../core/storage';
 import type { SharePointSettingsResponseDto } from '../dto/responses/sharepoint-settings-response.dto';
 
 /** Turns the settings the API holds into the settings response, field by field (the response never depends on the model's shape). */

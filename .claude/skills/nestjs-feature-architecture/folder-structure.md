@@ -4,12 +4,13 @@
 
 ```text
 src/
-├── app.module.ts                         ConfigModule, HttpModule, feature modules
+├── app.module.ts                         ConfigModule, ApiResponseModule, ExceptionFiltersModule, feature modules
 ├── core/                                 technical building blocks only (no business concepts)
 │   ├── dataverse/                        connection: MSAL, DataverseClient, retry, DataverseException
 │   ├── validation/                       zodBody (422) / zodQuery / zodParam (400)
 │   ├── errors/                           BusinessError + BusinessErrorKind + ErrorCode (framework-free)
-│   └── http/                             response envelope, global exception filters, ResponseInterceptor
+│   ├── api-response/                     response envelope, ResponseInterceptor
+│   └── exception-filters/                global exception filters
 └── modules/
     └── customers/
         ├── customers.module.ts

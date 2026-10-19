@@ -1,8 +1,11 @@
 import { Catch, HttpException, HttpStatus } from '@nestjs/common';
-import { ApiErrorResponse, FieldError } from '../../envelope/api-response.types';
-import { ApiResponseBuilder } from '../../envelope/api-response.builder';
+import {
+  ApiErrorResponse,
+  ApiResponseBuilder,
+  FieldError,
+} from '../../api-response';
 import { ApiExceptionFilter } from '../api-exception.filter';
-import { ErrorCode } from '../../../errors';
+import { ErrorCode } from '../../errors';
 
 /** The body a Nest `HttpException` may carry (validation pipes add `code` + `errors`). */
 interface HttpExceptionBody {

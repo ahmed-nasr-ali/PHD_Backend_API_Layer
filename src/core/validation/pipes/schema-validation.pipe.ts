@@ -1,6 +1,7 @@
 import { ArgumentMetadata, PipeTransform } from '@nestjs/common';
-import { ValidationExceptionFactory, Validator } from '../contracts';
-import { ValidationFailedError } from '../errors';
+import { Validator } from '../validators/validator.interface';
+import { ValidationExceptionFactory } from '../exception-factories/validation-exception-factory.interface';
+import { ValidationFailedError } from '../errors/validation-failed.error';
 
 export class SchemaValidationPipe<T = unknown> implements PipeTransform<
   unknown,

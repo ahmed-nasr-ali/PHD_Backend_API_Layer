@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
-import { Validator } from '../contracts';
-import { ValidationFailedError } from '../errors';
+import { Validator } from '../validator.interface';
+import { ValidationFailedError } from '../../errors/validation-failed.error';
 
 export class ZodValidator<T> implements Validator<T> {
   constructor(private readonly schema: ZodType<T>) {}

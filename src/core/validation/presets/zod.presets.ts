@@ -1,9 +1,9 @@
 import { HttpStatus } from '@nestjs/common';
 import type { ZodType } from 'zod';
-import { SchemaValidationPipe } from '../pipes';
-import { ZodValidator } from '../validators';
-import { HttpValidationExceptionFactory } from '../exception-factories';
-import type { ValidationExceptionFactory } from '../contracts';
+import { SchemaValidationPipe } from '../pipes/schema-validation.pipe';
+import { ZodValidator } from '../validators/zod/zod.validator';
+import { HttpValidationExceptionFactory } from '../exception-factories/http/http-validation.exception-factory';
+import type { ValidationExceptionFactory } from '../exception-factories/validation-exception-factory.interface';
 
 /** Builds a Zod validation pipe that rejects with the given exception. */
 const zodPipe =

@@ -7,6 +7,7 @@ import { PhdAccountRepository } from '../../../../repositories/phd-account.repos
 import { RegistrationStrategy } from '../registration.strategy';
 import { UserRegistrar } from '../../user-registrar';
 import type { OwnerRegisterInput } from './owner-register.input';
+import { UserRegistrationData } from '../../../../domain/models/user-registration-data.model';
 
 /** Owner: everything from the form · must be a Palm Hills customer · gets an OTP */
 @Injectable()
@@ -26,7 +27,7 @@ export class OwnerRegistrationStrategy extends RegistrationStrategy {
    * · both cases → the CRM sends an OTP (requestOtp)
    */
   async execute(input: OwnerRegisterInput): Promise<User> {
-    const data = {
+    const data: UserRegistrationData = {
       name: input.name,
       mobile: input.mobile,
       email: input.email,

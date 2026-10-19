@@ -11,18 +11,18 @@ Numbers show the order a request passes through each file.
 ```text
 src/
 ├── main.ts
-├── app.module.ts                                  imports HttpModule (global filters + interceptor)
+├── app.module.ts                                  imports ApiResponseModule (success interceptor) + ExceptionFiltersModule (global filters)
 ├── core/
 │   ├── validation/
 │   │   └── presets.ts                             ② zodBody runs the schema
 │   ├── dataverse/
-│   │   ├── crm-token/                             ⑧ ⑫ MSAL token
+│   │   ├── auth/                                  ⑧ ⑫ MSAL token
 │   │   ├── policies/                              ⑧ ⑫ retry
-│   │   └── data-access/dataverse.client.ts        ⑧ ⑫ HTTP call to the Dataverse Web API
+│   │   └── client/dataverse.client.ts             ⑧ ⑫ HTTP call to the Dataverse Web API
 │   ├── errors/                                    ⑤ ⑨ BusinessError (framework-free)
-│   └── http/
-│       ├── filter/                                ✖ any thrown error → error envelope
-│       └── response.interceptor.ts                ⑮ wraps the response DTO in the success envelope
+│   ├── exception-filters/                         ✖ any thrown error → error envelope
+│   └── api-response/
+│       └── interceptors/response.interceptor.ts   ⑮ wraps the response DTO in the success envelope
 └── modules/customers/
     ├── customers.module.ts                        wiring: CustomerRepository → DataverseCustomerRepository
     ├── controllers/
@@ -65,15 +65,15 @@ src/
 | ⑤ | `domain/models/customer.model.ts` | `Customer.create()` applies the rules and generates the id | 422 `CustomerMustBeAdultError` |
 | ⑥ | `customer.repository.ts` | The service calls `findByEmail(email)` | |
 | ⑦ | `dataverse-customer.repository.ts` + `tables/customer.table.ts` + `queries/customer.query.ts` | The repository builds the query (table + `$select` + `$filter`) | |
-| ⑧ | `core/dataverse` | `DataverseClient` gets the token and sends the GET to `contacts` | 502 / 503 |
+| ⑧ | `core/dataverse` | `DataverseClient` gets the token and sends the GET to `contacts` | 503 / 502 / 500 |
 | ⑨ | `mappers/customer.table-mapper.ts` | If a row came back, `toDomain` turns it into a `Customer`, and the service throws | 409 `EmailAlreadyInUseError` |
 | ⑩ | `customer.repository.ts` | The service calls `create(customer)` | |
 | ⑪ | `mappers/customer.table-mapper.ts` | `toTableRow(customer)` produces a `CustomerTableRow` | |
-| ⑫ | `core/dataverse` | `DataverseClient` sends the POST to `contacts`, and the repository returns `void` | 502 / 503 |
+| ⑫ | `core/dataverse` | `DataverseClient` sends the POST to `contacts`, and the repository returns `void` | 503 / 502 / 500 |
 | ⑬ | `create-customer.service.ts` | The service returns the `Customer` it built in ⑤ | |
 | ⑭ | `customer-response.mapper.ts` | `toResponse()` produces `CustomerResponseDto` | |
-| ⑮ | `customers.controller.ts` + `core/http/response.interceptor.ts` | The controller returns the DTO; the interceptor sends 201 `{ success: true, statusCode: 201, message: "OK", data: <dto> }` | |
-| ✖ | `core/http/filters` | Any error that's thrown is turned into the error envelope with the HTTP status shown above | |
+| ⑮ | `customers.controller.ts` + `core/api-response/interceptors/response.interceptor.ts` | The controller returns the DTO; the interceptor sends 201 `{ statusCode: 201, message: "OK", data: <dto> }` | |
+| ✖ | `core/exception-filters` | Any error that's thrown is turned into the error envelope with the HTTP status shown above | |
 
 ### The same flow as code
 
@@ -197,7 +197,7 @@ static toResponse(customer: Customer): CustomerResponseDto {
 }
 ```
 
-**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`BusinessErrorFilter` in `core/http/filters/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
+**Who decides the HTTP status?** Not the domain or the service. They throw errors that carry only a `kind` and a `code`. The HTTP edge (`BusinessErrorFilter` in `core/exception-filters/`) maps the `kind` to a status. Another caller, like a CLI, catches the same error and handles it its own way:
 
 | `kind` | HTTP (`BusinessErrorFilter`) | CLI (example) |
 | --- | --- | --- |
@@ -215,31 +215,34 @@ static toResponse(customer: Customer): CustomerResponseDto {
 ```text
 src/
 ├── main.ts
-├── app.module.ts                         # ConfigModule + HttpModule + feature modules
+├── app.module.ts                         # ConfigModule + ApiResponseModule + ExceptionFiltersModule + feature modules
 │
 ├── core/                                 # technical only, no business
 │   ├── dataverse/                        # (exists) connection to Dataverse
 │   │   ├── config/dataverse.config.ts
-│   │   ├── crm-token/                    # MSAL token
-│   │   ├── data-access/                  # DataverseClient + DynamicsWebApiClient + DataverseQuery/Expand + odata.ts (odataString) + option-set.ts (optionSetValue)
+│   │   ├── auth/                         # TokenProvider (abstract) + msal/MsalTokenProvider
+│   │   ├── client/                       # DataverseClient (abstract) + dynamics-web-api/DynamicsWebApiClient
+│   │   ├── query/                        # dataverse-query.types.ts (DataverseQuery/Expand) + odata-string.util.ts (odataString)
+│   │   ├── mapping/                      # option-set.util.ts (optionSetValue)
 │   │   ├── errors/dataverse.exception.ts
-│   │   ├── policies/                     # DataverseRetryPolicy (abstract) + TokenRefreshRetryPolicy (401)
+│   │   ├── policies/                     # RequestPolicy (abstract) + expired-token/RetryOnExpiredTokenPolicy (401)
 │   │   ├── dataverse.module.ts
 │   │   └── index.ts
 │   ├── validation/                       # (exists) zodBody / zodQuery / zodParam
 │   ├── errors/                           # (exists) framework-free
 │   │   ├── business-error.ts             # BusinessError + BusinessErrorKind
 │   │   └── error-code.ts                 # ErrorCode: codes the system itself returns
-│   └── http/                             # (exists) one response envelope for every response
-│       ├── api-response.ts               # envelope types + ApiResponseBuilder
-│       ├── response.interceptor.ts       # success → { success: true, data }
-│       ├── http.module.ts                # registers the filters + interceptor (catch-all first)
-│       └── filter/
-│           ├── api-exception.filter.ts         # abstract base: writes the response
-│           ├── business-error.filter.ts        # BusinessError → 404 / 409 / 422 / 403 / 429
-│           ├── dataverse-exception.filter.ts   # DataverseException → 502 / 503
-│           ├── http-exception.filter.ts        # validation + Nest HttpException
-│           └── unhandled-exception.filter.ts   # anything else → 500
+│   ├── api-response/                     # (exists) one response envelope for every response
+│   │   ├── envelope/                     # api-response.types.ts + api-response.builder.ts (ApiResponseBuilder)
+│   │   ├── interceptors/response.interceptor.ts   # success → { statusCode, message, data }
+│   │   └── api-response.module.ts        # registers the interceptor
+│   └── exception-filters/                # (exists) every thrown error → error envelope
+│       ├── api-exception.filter.ts                             # abstract base: writes the response
+│       ├── business-error/business-error.filter.ts             # BusinessError → 404 / 409 / 422 / 403 / 429
+│       ├── dataverse-exception/dataverse-exception.filter.ts   # DataverseException → 503 (busy) / 502 (Dataverse failed) / 500 (4xx: our bug)
+│       ├── http-exception/http-exception.filter.ts             # validation + Nest HttpException
+│       ├── unhandled-exception/unhandled-exception.filter.ts   # anything else → 500
+│       └── exception-filters.module.ts                         # registers the filters (catch-all first)
 │
 └── modules/
     ├── customers/                        # case 2
@@ -448,8 +451,8 @@ src/core/
 ├── dataverse/                            # removed after the full migration
 ├── postgres/                             # new: pool, config, health check
 │   └── postgres.module.ts
-└── http/filters/
-    └── postgres-exception.filter.ts      # new: extends ApiExceptionFilter + one APP_FILTER line in HttpModule
+└── exception-filters/postgres-exception/
+    └── postgres-exception.filter.ts      # new: extends ApiExceptionFilter + one APP_FILTER line in ApiResponseModule
 
 modules/customers/repositories/
 ├── customer.repository.ts                # unchanged

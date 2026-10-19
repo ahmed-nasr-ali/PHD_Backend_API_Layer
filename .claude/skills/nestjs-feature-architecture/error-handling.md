@@ -7,9 +7,9 @@ Dataverse Web API failure
   → DataverseException { status, cause }            core/dataverse
   → repository: 404 → null; known conflict → BusinessError; else rethrow
   → service: business outcomes → BusinessError
-  → global filters                                  core/http/filters
+  → global filters                                  core/exception-filters
        BusinessError      → 404 / 409 / 422 / 403 / 429  code = error.code (429: + retryAfterSeconds)
-       DataverseException → 503 (429/503) or 502   code = UPSTREAM_UNAVAILABLE, details logged, never exposed
+       DataverseException → 503 UPSTREAM_UNAVAILABLE (429/503) · 502 UPSTREAM_ERROR (other 5xx / no answer) · 500 INTERNAL_ERROR (4xx), details logged, never exposed
        HttpException      → its own status          validation: VALIDATION_FAILED + errors (422 body, 400 query/params);
                                                     a 500 becomes INTERNAL_ERROR with a generic message
        anything else      → 500                     code = INTERNAL_ERROR, details logged, never exposed
@@ -17,24 +17,24 @@ Dataverse Web API failure
 Every response with status ≥ 500 is logged once, by the base filter.
 ```
 
-Every response, success or error, uses one envelope (built only by `ApiResponseBuilder` in `src/core/http/api-response.ts`):
+Every response, success or error, uses one envelope (built only by `ApiResponseBuilder` in `src/core/api-response/envelope/`):
 
 ```jsonc
 // success: controllers return the response DTO; ResponseInterceptor wraps it
-{ "success": true,  "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
+{ "statusCode": 200, "message": "OK", "data": { /* response DTO */ } }
 // error: built by the exception filters
-{ "success": false, "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "Customer 42 was not found", "data": null }
+{ "statusCode": 404, "code": "CUSTOMER_NOT_FOUND", "message": "Customer 42 was not found" }
 // validation error
-{ "success": false, "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed", "data": null,
+{ "statusCode": 422, "code": "VALIDATION_FAILED", "message": "Validation failed",
   "errors": [{ "field": "email", "message": "Invalid email address" }] }
 // try again later (RetryLaterError): the only error carrying retryAfterSeconds
-{ "success": false, "statusCode": 429, "code": "OTP_RESEND_TOO_SOON", "message": "Please wait 50 seconds before requesting a new code",
-  "data": null, "retryAfterSeconds": 50 }
+{ "statusCode": 429, "code": "OTP_RESEND_TOO_SOON", "message": "Please wait 50 seconds before requesting a new code",
+  "retryAfterSeconds": 50 }
 ```
 
 `code` is the stable value clients switch on; `message` is for display and may change. Adding envelope fields is safe; removing or renaming one is a breaking change.
 
-The codes the system itself returns are the `ErrorCode` enum (`src/core/errors/error-code.ts`): `VALIDATION_FAILED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL_ERROR`, `HTTP_ERROR` (an `HttpException` whose status has no name). Never hand-type these strings; other `HttpException`s use the status name (`NOT_FOUND`), and business errors bring their own code (`CUSTOMER_NOT_FOUND`).
+The codes the system itself returns are the `ErrorCode` enum (`src/core/errors/error-code.ts`): `VALIDATION_FAILED`, `UPSTREAM_UNAVAILABLE`, `UPSTREAM_ERROR`, `INTERNAL_ERROR`, `HTTP_ERROR` (an `HttpException` whose status has no name). Never hand-type these strings; other `HttpException`s use the status name (`NOT_FOUND`), and business errors bring their own code (`CUSTOMER_NOT_FOUND`).
 
 ## Base class (`src/core/errors/business-error.ts`)
 
@@ -104,19 +104,21 @@ export class CustomerNotFoundError extends BusinessError {
 }
 ```
 
-## Filters and interceptor (`src/core/http/`)
+## Filters and interceptor (`src/core/exception-filters/`, `src/core/api-response/`)
 
 These already exist; features never touch them.
 
 | File | Role |
 | --- | --- |
-| `filters/api-exception.filter.ts` | abstract base (Template Method): `catch()` logs any response ≥ 500 (message from `describe()`, overridable) and writes the response through `HttpAdapterHost` (not Express); subclasses only implement `toResponse(exception): ApiErrorResponse` |
-| `filters/business-error.filter.ts` | `@Catch(BusinessError)`: `Record<BusinessErrorKind, HttpStatus>` → 404 / 409 / 422 / 403 / 429; a `RetryLaterError` also gets `retryAfterSeconds` in the body |
-| `filters/dataverse-exception.filter.ts` | `@Catch(DataverseException)`: 503 / 502 `UPSTREAM_UNAVAILABLE`; overrides `describe()` to log the Dataverse status |
-| `filters/http-exception.filter.ts` | `@Catch(HttpException)`: keeps the exception's status; `code` from the body or the status name (`NOT_FOUND`); validation `errors` carried through; a `message` array becomes one `errors` entry per message; a 500 is answered with `INTERNAL_ERROR` and a generic message |
-| `filters/unhandled-exception.filter.ts` | `@Catch()`: 500 `INTERNAL_ERROR` with a generic message |
-| `response.interceptor.ts` | wraps successful results in the success envelope; skips `StreamableFile`, 204 and non-HTTP contexts |
-| `http.module.ts` | registers the 4 filters (`APP_FILTER`) and the interceptor (`APP_INTERCEPTOR`); imported once in `AppModule` |
+| `exception-filters/api-exception.filter.ts` | abstract base (Template Method): `catch()` logs any response ≥ 500 (message from `describe()`, overridable) and writes the response through `HttpAdapterHost` (not Express); subclasses only implement `toResponse(exception): ApiErrorResponse` |
+| `exception-filters/business-error/business-error.filter.ts` | `@Catch(BusinessError)`: `Record<BusinessErrorKind, HttpStatus>` → 404 / 409 / 422 / 403 / 429; a `RetryLaterError` also gets `retryAfterSeconds` in the body |
+| `exception-filters/dataverse-exception/dataverse-exception.filter.ts` | `@Catch(DataverseException)`: 429/503 → 503 `UPSTREAM_UNAVAILABLE` · other 5xx or no status → 502 `UPSTREAM_ERROR` · 4xx → 500 `INTERNAL_ERROR` (our request was wrong); overrides `describe()` to log the Dataverse status |
+| `exception-filters/http-exception/http-exception.filter.ts` | `@Catch(HttpException)`: keeps the exception's status; `code` from the body or the status name (`NOT_FOUND`); validation `errors` carried through; a `message` array becomes one `errors` entry per message; a 500 is answered with `INTERNAL_ERROR` and a generic message |
+| `exception-filters/unhandled-exception/unhandled-exception.filter.ts` | `@Catch()`: 500 `INTERNAL_ERROR` with a generic message |
+| `interceptors/response.interceptor.ts` | wraps successful results in the success envelope; skips `StreamableFile`, 204 and non-HTTP contexts |
+| `envelope/` | `api-response.types.ts` (`ApiSuccessResponse`, `ApiErrorResponse`, `FieldError`) + `api-response.builder.ts` (`ApiResponseBuilder`) |
+| exception-filters/exception-filters.module.ts | registers the 4 filters (APP_FILTER); imported once in AppModule |
+| pi-response/api-response.module.ts | registers the interceptor (APP_INTERCEPTOR); imported once in AppModule |
 
 A filter is only a translation (logging and writing the response are inherited):
 
@@ -136,9 +138,9 @@ export class BusinessErrorFilter extends ApiExceptionFilter<BusinessError> {
 }
 ```
 
-**Filter order matters.** Nest tries global filters in reverse registration order and uses the first whose `@Catch` matches (`instanceof`). The catch-all `UnhandledExceptionFilter` must therefore be registered **first** in `HttpModule`, or it would swallow every error as a 500.
+**Filter order matters.** Nest tries global filters in reverse registration order and uses the first whose `@Catch` matches (`instanceof`). The catch-all `UnhandledExceptionFilter` must therefore be registered **first** in `ExceptionFiltersModule`, or it would swallow every error as a 500.
 
-**Adding an error source** (e.g. a PostgreSQL error filter after a migration): a new `ApiExceptionFilter` subclass in `core/http/filters/` + one `APP_FILTER` line in `HttpModule` after the catch-all. If it returns ≥ 500 it is logged automatically; override `describe()` only to add details to the log line. Nothing else changes.
+**Adding an error source** (e.g. a PostgreSQL error filter after a migration): a new `ApiExceptionFilter` subclass in its own folder under `core/exception-filters/` (e.g. `postgres-exception/postgres-exception.filter.ts`) + one `APP_FILTER` line in `ExceptionFiltersModule` after the catch-all. If it returns ≥ 500 it is logged automatically; override `describe()` only to add details to the log line. Nothing else changes.
 
 ## Same error, different callers
 
@@ -170,7 +172,7 @@ try {
 
 - Never `throw new Error('…')` for business outcomes; it becomes a 500.
 - Never throw `HttpException` subclasses from domain or services.
-- No HTTP status codes in `domain/` or `services/`, not even in comments (`// kind: Conflict`, not `// → 409`). Only `core/http/` and controllers know HTTP.
+- No HTTP status codes in `domain/` or `services/`, not even in comments (`// kind: Conflict`, not `// → 409`). Only `core/api-response/`, `core/exception-filters/` and controllers know HTTP.
 - Never `catch (DataverseException)` in a service. Repositories translate expected errors (see `dataverse-data-access` → `error-handling.md`).
 - Never put Dataverse or unexpected error text in API responses; log it.
 - Keep `cause` when wrapping errors.
