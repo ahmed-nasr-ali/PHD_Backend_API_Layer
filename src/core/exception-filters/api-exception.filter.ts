@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { ApiErrorResponse } from '../api-response';
+import { ApiErrorResponse } from '../envelope/api-response.types';
 
 /**
  * Base for every exception filter: subclasses only translate the exception

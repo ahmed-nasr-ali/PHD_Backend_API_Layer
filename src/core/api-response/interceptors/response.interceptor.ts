@@ -7,7 +7,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
-import { ApiResponseBuilder } from './api-response';
+import { ApiResponseBuilder } from '../envelope/api-response.builder';
 
 /** Wraps every successful controller result in the success envelope. */
 @Injectable()

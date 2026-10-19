@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import {
-  BusinessErrorFilter,
-  DataverseExceptionFilter,
-  HttpExceptionFilter,
-  UnhandledExceptionFilter,
-} from './filters';
-import { ResponseInterceptor } from './response.interceptor';
+import { BusinessErrorFilter } from './filters/business-error/business-error.filter';
+import { DataverseExceptionFilter } from './filters/dataverse-exception/dataverse-exception.filter';
+import { HttpExceptionFilter } from './filters/http-exception/http-exception.filter';
+import { UnhandledExceptionFilter } from './filters/unhandled-exception/unhandled-exception.filter';
+import { ResponseInterceptor } from './interceptors/response.interceptor';
 
 /**
  * Registers the response envelope for the whole app.
@@ -21,4 +19,4 @@ import { ResponseInterceptor } from './response.interceptor';
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
 })
-export class HttpModule {}
+export class ApiResponseModule {}

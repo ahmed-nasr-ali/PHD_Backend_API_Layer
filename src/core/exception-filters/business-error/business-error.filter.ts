@@ -3,9 +3,10 @@ import {
   BusinessError,
   BusinessErrorKind,
   RetryLaterError,
-} from '../../errors';
-import { ApiErrorResponse, ApiResponseBuilder } from '../api-response';
-import { ApiExceptionFilter } from './api-exception.filter';
+} from '../../../errors';
+import { ApiErrorResponse } from '../../envelope/api-response.types';
+import { ApiResponseBuilder } from '../../envelope/api-response.builder';
+import { ApiExceptionFilter } from '../api-exception.filter';
 
 const STATUS_BY_KIND: Record<BusinessErrorKind, HttpStatus> = {
   [BusinessErrorKind.NotFound]: HttpStatus.NOT_FOUND,
